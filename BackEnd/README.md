@@ -29,18 +29,19 @@
 
 ### Пошаговая инструкция
 
-1. **Перейдите в корневую папку проекта** (`volt_ai_backend`).
-2. **Активируйте виртуальное окружение** (`source venv/bin/activate`).
+1. **Перейдите в корневую папку проекта** (`Backend`).
+2. **Активируйте виртуальное окружение** (`venv\Scripts\activate `).
 3. **Установите все зависимости** (Django, DRF, requests):
     ```bash
     pip install -r requirements.txt
     ```
-4. **Подготовьте базу данных (создайте и примените миграции):**
+4. **Перейдите в папку** (`volt_ai_backend`).
+5. **Подготовьте базу данных (создайте и примените миграции):**
     ```bash
     python manage.py makemigrations optimization
     python manage.py migrate
     ```
-5. **Запустите сервер Django:**
+6. **Запустите сервер Django:**
     ```bash
     python manage.py runserver
     ```
