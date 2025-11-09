@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.log
+
+# Virtual environment
+venv/
+env/
+.venv/
+.env/
+
+# IDE и прочее
+.idea/
+.vscode/
+*.sqlite3
