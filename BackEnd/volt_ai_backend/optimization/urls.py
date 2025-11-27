@@ -1,6 +1,6 @@
 from django.urls import path
-from .views import WindOptimizeView
+from .views import optimize_wind_sync_view
 
 urlpatterns = [
-    path('optimize-wind/', WindOptimizeView.as_view(), name='optimize-wind'),
+    path('optimize-wind/', optimize_wind_sync_view, name='optimize-wind'),
 ]
