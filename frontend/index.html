@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VoltAI — Intelligent Energy Trading</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #06090f;
+      --bg2: #0d1320;
+      --bg3: #111827;
+      --card: #0f1825;
+      --card2: #141e2e;
+      --border: #1e2d45;
+      --border2: #243651;
+      --accent: #00e5a0;
+      --accent2: #00b87a;
+      --accent3: rgba(0,229,160,0.12);
+      --blue: #3b82f6;
+      --blue2: #60a5fa;
+      --orange: #f97316;
+      --red: #ef4444;
+      --yellow: #eab308;
+      --text: #e8f0fe;
+      --text2: #8fa3bf;
+      --text3: #4d6685;
+      --font-mono: 'Space Mono', monospace;
+      --font-sans: 'DM Sans', sans-serif;
+      --radius: 12px;
+      --glow: 0 0 30px rgba(0,229,160,0.15);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    /* SCROLLBAR */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg2); }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    /* LAYOUT */
+    .app { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 240px; min-width: 240px;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      padding: 0 0 24px 0;
+      position: fixed; top: 0; left: 0; bottom: 0; z-index: 100;
+    }
+    .sidebar-logo {
+      padding: 28px 24px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .logo-icon {
+      width: 34px; height: 34px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 700; color: #06090f;
+      font-family: var(--font-mono);
+    }
+    .logo-text { font-family: var(--font-mono); font-size: 17px; font-weight: 700; color: var(--text); }
+    .logo-sub { font-size: 10px; color: var(--accent); letter-spacing: 0.08em; }
+    .nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+    .nav-section { margin-bottom: 24px; }
+    .nav-label { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); padding: 0 12px; margin-bottom: 8px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 8px; cursor: pointer;
+      color: var(--text2); font-size: 14px; font-weight: 400;
+      transition: all 0.15s; border: none; background: none; width: 100%; text-align: left;
+    }
+    .nav-item:hover { background: var(--bg3); color: var(--text); }
+    .nav-item.active { background: var(--accent3); color: var(--accent); border: 1px solid rgba(0,229,160,0.2); }
+    .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+    .sidebar-user {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .user-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--blue));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; color: #06090f;
+      flex-shrink: 0;
+    }
+    .user-info { flex: 1; min-width: 0; }
+    .user-name { font-size: 13px; font-weight: 500; truncate; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-role { font-size: 11px; color: var(--text3); }
+
+    /* MAIN */
+    .main { margin-left: 240px; flex: 1; min-height: 100vh; }
+    .topbar {
+      height: 64px; background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px; position: sticky; top: 0; z-index: 50;
+    }
+    .topbar-title { font-family: var(--font-mono); font-size: 15px; color: var(--text2); }
+    .topbar-actions { display: flex; align-items: center; gap: 12px; }
+    .balance-pill {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 20px; padding: 6px 14px; font-size: 13px;
+    }
+    .balance-pill .credits { color: var(--accent); font-family: var(--font-mono); font-weight: 700; }
+    .balance-pill .coins { color: var(--yellow); font-family: var(--font-mono); font-weight: 700; }
+    .page-content { padding: 32px; }
+
+    /* CARDS */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: var(--border2); }
+    .card-title { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+    .card-value { font-family: var(--font-mono); font-size: 28px; font-weight: 700; color: var(--text); }
+    .card-sub { font-size: 12px; color: var(--text3); margin-top: 4px; }
+    .card-accent { border-color: rgba(0,229,160,0.3); background: var(--card); box-shadow: var(--glow); }
+
+    /* GRID */
+    .grid { display: grid; gap: 16px; }
+    .grid-4 { grid-template-columns: repeat(4, 1fr); }
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .grid-2 { grid-template-columns: repeat(2, 1fr); }
+
+    /* STATS ROW */
+    .stat-card { position: relative; overflow: hidden; }
+    .stat-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    .stat-card.green::before { background: var(--accent); }
+    .stat-card.blue::before { background: var(--blue); }
+    .stat-card.orange::before { background: var(--orange); }
+    .stat-card.yellow::before { background: var(--yellow); }
+    .stat-icon { font-size: 24px; margin-bottom: 12px; }
+    .stat-label { font-size: 12px; color: var(--text3); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .stat-val { font-family: var(--font-mono); font-size: 26px; font-weight: 700; }
+    .stat-val.green { color: var(--accent); }
+    .stat-val.blue { color: var(--blue2); }
+    .stat-val.orange { color: var(--orange); }
+    .stat-val.yellow { color: var(--yellow); }
+    .stat-change { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+    /* BUTTONS */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 500;
+      cursor: pointer; border: none; transition: all 0.15s; font-family: var(--font-sans);
+      white-space: nowrap;
+    }
+    .btn-primary { background: var(--accent); color: #06090f; }
+    .btn-primary:hover { background: var(--accent2); transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-outline { background: transparent; border: 1px solid var(--border2); color: var(--text2); }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-danger { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: var(--red); }
+    .btn-danger:hover { background: rgba(239,68,68,0.25); }
+    .btn-sm { padding: 6px 14px; font-size: 12px; }
+    .btn-blue { background: var(--blue); color: white; }
+    .btn-blue:hover { background: #2563eb; }
+
+    /* FORM */
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 12px; color: var(--text3); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .form-input {
+      width: 100%; background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px; color: var(--text);
+      font-family: var(--font-sans); font-size: 14px; outline: none; transition: border-color 0.15s;
+    }
+    .form-input:focus { border-color: var(--accent); }
+    .form-input::placeholder { color: var(--text3); }
+    select.form-input { cursor: pointer; }
+    textarea.form-input { resize: vertical; min-height: 80px; }
+    .form-error { font-size: 12px; color: var(--red); margin-top: 4px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* TABLE */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); padding: 10px 16px; border-bottom: 1px solid var(--border); font-weight: 500; }
+    td { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text2); }
+    tr:hover td { background: var(--bg3); }
+    tr:last-child td { border-bottom: none; }
+    .mono { font-family: var(--font-mono); font-size: 12px; }
+
+    /* BADGE */
+    .badge {
+      display: inline-flex; align-items: center; padding: 3px 10px;
+      border-radius: 20px; font-size: 11px; font-weight: 500; white-space: nowrap;
+    }
+    .badge-green { background: rgba(0,229,160,0.15); color: var(--accent); }
+    .badge-blue { background: rgba(59,130,246,0.15); color: var(--blue2); }
+    .badge-orange { background: rgba(249,115,22,0.15); color: var(--orange); }
+    .badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+    .badge-gray { background: rgba(100,116,139,0.15); color: #94a3b8; }
+    .badge-yellow { background: rgba(234,179,8,0.15); color: var(--yellow); }
+
+    /* SECTION HEADER */
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .section-title { font-family: var(--font-mono); font-size: 16px; font-weight: 700; }
+    .section-sub { font-size: 13px; color: var(--text3); margin-top: 4px; }
+
+    /* MODAL */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(6,9,15,0.85);
+      display: flex; align-items: center; justify-content: center; z-index: 1000;
+      animation: fadeIn 0.15s ease;
+    }
+    .modal {
+      background: var(--card2); border: 1px solid var(--border2);
+      border-radius: 16px; padding: 32px; min-width: 440px; max-width: 560px; width: 100%;
+      animation: slideUp 0.2s ease;
+    }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .modal-title { font-family: var(--font-mono); font-size: 16px; font-weight: 700; }
+    .modal-close { cursor: pointer; color: var(--text3); font-size: 20px; background: none; border: none; color: var(--text2); }
+    .modal-close:hover { color: var(--text); }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    /* HASH */
+    .hash { font-family: var(--font-mono); font-size: 11px; color: var(--text3); word-break: break-all; }
+    .hash-short { font-family: var(--font-mono); font-size: 12px; color: var(--accent); }
+
+    /* MAP PLACEHOLDER */
+    .map-container {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+      position: relative;
+    }
+    .map-grid {
+      display: grid; gap: 2px; padding: 16px;
+    }
+    .map-cell {
+      border-radius: 4px; cursor: pointer; transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-mono); font-size: 9px; color: rgba(255,255,255,0.4);
+    }
+    .map-cell.turbine { position: relative; }
+    .map-cell.turbine::after {
+      content: '⚡'; position: absolute; font-size: 14px;
+    }
+
+    /* NOTIFICATION */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--card2); border: 1px solid var(--border2);
+      border-radius: 10px; padding: 14px 20px;
+      display: flex; align-items: flex-start; gap: 12px;
+      max-width: 360px; z-index: 2000;
+      animation: slideInRight 0.3s ease;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .toast.success { border-left: 3px solid var(--accent); }
+    .toast.error { border-left: 3px solid var(--red); }
+    .toast.info { border-left: 3px solid var(--blue); }
+    .toast-icon { font-size: 18px; margin-top: 1px; }
+    .toast-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .toast-msg { font-size: 12px; color: var(--text3); }
+    @keyframes slideInRight { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    /* AUTH */
+    .auth-page {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 50% 0%, rgba(0,229,160,0.08) 0%, transparent 60%), var(--bg);
+    }
+    .auth-card {
+      background: var(--card2); border: 1px solid var(--border2);
+      border-radius: 20px; padding: 48px; width: 420px;
+    }
+    .auth-logo { text-align: center; margin-bottom: 40px; }
+    .auth-logo-icon {
+      width: 56px; height: 56px; background: var(--accent); border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; font-weight: 700; color: #06090f; font-family: var(--font-mono);
+      margin: 0 auto 12px;
+    }
+    .auth-logo-name { font-family: var(--font-mono); font-size: 22px; font-weight: 700; }
+    .auth-logo-sub { font-size: 13px; color: var(--text3); margin-top: 4px; }
+    .auth-tabs { display: flex; gap: 2px; background: var(--bg3); border-radius: 10px; padding: 4px; margin-bottom: 28px; }
+    .auth-tab {
+      flex: 1; padding: 8px; border-radius: 7px; border: none; background: none;
+      font-family: var(--font-sans); font-size: 14px; cursor: pointer; color: var(--text3); transition: all 0.15s;
+    }
+    .auth-tab.active { background: var(--card); color: var(--text); }
+
+    /* BLOCKCHAIN BLOCK */
+    .block-card {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px;
+      border-left: 3px solid var(--accent);
+      margin-bottom: 8px;
+    }
+    .block-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .block-num { font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--accent); }
+    .block-time { font-size: 11px; color: var(--text3); }
+
+    /* ENERGY BAR */
+    .energy-bar { background: var(--bg3); border-radius: 4px; height: 6px; overflow: hidden; }
+    .energy-bar-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.5s ease; }
+
+    /* OFFER CARD */
+    .offer-card {
+      background: var(--card2); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px; transition: all 0.2s;
+    }
+    .offer-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+    .offer-seller { font-size: 12px; color: var(--text3); margin-bottom: 8px; }
+    .offer-amount { font-family: var(--font-mono); font-size: 24px; font-weight: 700; color: var(--text); }
+    .offer-price { font-size: 13px; color: var(--accent); margin-top: 4px; }
+    .offer-avail { font-size: 11px; color: var(--text3); margin-top: 2px; }
+    .offer-actions { display: flex; gap: 8px; margin-top: 14px; }
+
+    /* SPINNER */
+    .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* WIND MAP */
+    .wind-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; padding: 16px; }
+    .wind-cell {
+      aspect-ratio: 1; border-radius: 4px; display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-family: var(--font-mono); cursor: default; position: relative;
+      transition: transform 0.2s;
+    }
+    .wind-cell:hover { transform: scale(1.1); z-index: 2; }
+
+    /* DIVIDER */
+    .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+    /* EMPTY STATE */
+    .empty { text-align: center; padding: 60px 20px; color: var(--text3); }
+    .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.4; }
+    .empty-text { font-size: 14px; }
+
+    /* LOADING */
+    .loading { display: flex; align-items: center; justify-content: center; padding: 60px; }
+
+    /* TX CARD */
+    .tx-type-mint { color: var(--accent); }
+    .tx-type-trade { color: var(--blue2); }
+
+    @media (max-width: 1100px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 768px) {
+      .sidebar { width: 60px; }
+      .sidebar-logo .logo-text, .nav-item span, .nav-label, .sidebar-user .user-info { display: none; }
+      .main { margin-left: 60px; }
+      .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+      .page-content { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+// ── CONFIG ────────────────────────────────────────────────────
+const API_BASE = "http://127.0.0.1:8000/api";
+
+// ── API CLIENT ────────────────────────────────────────────────
+const api = {
+  token: () => localStorage.getItem("voltai_token"),
+  headers(extra = {}) {
+    const h = { "Content-Type": "application/json", ...extra };
+    const t = this.token();
+    if (t) h["Authorization"] = `Bearer ${t}`;
+    return h;
+  },
+  async get(path) {
+    const r = await fetch(API_BASE + path, { headers: this.headers() });
+    if (!r.ok) throw await r.json();
+    return r.json();
+  },
+  async post(path, body) {
+    const r = await fetch(API_BASE + path, {
+      method: "POST", headers: this.headers(), body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    if (!r.ok) throw data;
+    return data;
+  },
+  async del(path) {
+    const r = await fetch(API_BASE + path, { method: "DELETE", headers: this.headers() });
+    if (!r.ok) throw await r.json();
+    return r.ok;
+  }
+};
+
+// ── TOAST ─────────────────────────────────────────────────────
+function Toast({ toasts, remove }) {
+  return <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 2000, display: "flex", flexDirection: "column", gap: 8 }}>
+    {toasts.map(t => (
+      <div key={t.id} className={`toast ${t.type}`} onClick={() => remove(t.id)} style={{ cursor: "pointer" }}>
+        <div className="toast-icon">{t.type === "success" ? "✅" : t.type === "error" ? "❌" : "ℹ️"}</div>
+        <div><div className="toast-title">{t.title}</div>{t.msg && <div className="toast-msg">{t.msg}</div>}</div>
+      </div>
+    ))}
+  </div>;
+}
+
+function useToast() {
+  const [toasts, setToasts] = useState([]);
+  const add = useCallback((type, title, msg) => {
+    const id = Date.now();
+    setToasts(p => [...p, { id, type, title, msg }]);
+    setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 4000);
+  }, []);
+  const remove = useCallback(id => setToasts(p => p.filter(t => t.id !== id)), []);
+  return { toasts, add, remove };
+}
+
+// ── AUTH PAGE ─────────────────────────────────────────────────
+function AuthPage({ onLogin }) {
+  const [tab, setTab] = useState("login");
+  const [form, setForm] = useState({ username: "", email: "", password: "" });
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  const handleSubmit = async () => {
+    setLoading(true); setErr("");
+    try {
+      let data;
+      if (tab === "login") {
+        data = await api.post("/auth/login/", { email: form.email, password: form.password });
+      } else {
+        data = await api.post("/auth/register/", { username: form.username, email: form.email, password: form.password });
+      }
+      localStorage.setItem("voltai_token", data.tokens.access);
+      localStorage.setItem("voltai_refresh", data.tokens.refresh);
+      localStorage.setItem("voltai_user", JSON.stringify(data.user));
+      onLogin(data.user);
+    } catch (e) {
+      setErr(JSON.stringify(e).replace(/[{}"]/g, " ").trim());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="auth-page">
+      <div className="auth-card">
+        <div className="auth-logo">
+          <div className="auth-logo-icon">V</div>
+          <div className="auth-logo-name">VoltAI</div>
+          <div className="auth-logo-sub">Intelligent Energy Trading</div>
+        </div>
+        <div className="auth-tabs">
+          <button className={`auth-tab ${tab === "login" ? "active" : ""}`} onClick={() => setTab("login")}>Sign In</button>
+          <button className={`auth-tab ${tab === "register" ? "active" : ""}`} onClick={() => setTab("register")}>Register</button>
+        </div>
+        {tab === "register" && (
+          <div className="form-group">
+            <label className="form-label">Username</label>
+            <input className="form-input" placeholder="voltauser" value={form.username}
+              onChange={e => setForm(p => ({ ...p, username: e.target.value }))} />
+          </div>
+        )}
+        <div className="form-group">
+          <label className="form-label">Email</label>
+          <input className="form-input" type="email" placeholder="user@voltai.com" value={form.email}
+            onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Password</label>
+          <input className="form-input" type="password" placeholder="••••••••" value={form.password}
+            onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
+            onKeyDown={e => e.key === "Enter" && handleSubmit()} />
+        </div>
+        {err && <div className="form-error" style={{ marginBottom: 12 }}>{err}</div>}
+        <button className="btn btn-primary" style={{ width: "100%", padding: "12px" }} onClick={handleSubmit} disabled={loading}>
+          {loading ? <span className="spinner" /> : (tab === "login" ? "Sign In" : "Create Account")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────
+function Dashboard({ toast }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get("/dashboard/").then(setData).catch(() => toast("error", "Failed to load dashboard")).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="loading"><div className="spinner" /></div>;
+  if (!data) return <div className="empty"><div className="empty-icon">⚠️</div><div className="empty-text">Connect to backend to see data</div></div>;
+
+  const { balance, stats, recent_transactions } = data;
+
+  return (
+    <div>
+      <div className="section-header">
+        <div><div className="section-title">Dashboard</div><div className="section-sub">Overview of your energy portfolio</div></div>
+      </div>
+
+      <div className="grid grid-4" style={{ marginBottom: 24 }}>
+        {[
+          { label: "Energy Credits", val: `${(balance.energy_credits || 0).toFixed(2)} kWh`, icon: "⚡", cls: "green", sub: `${(balance.locked_credits || 0).toFixed(2)} locked` },
+          { label: "Coin Balance", val: `${(balance.coin_balance || 0).toFixed(2)}`, icon: "🪙", cls: "yellow", sub: "Platform coins" },
+          { label: "Total Generated", val: `${(stats.total_generated_kwh || 0).toFixed(1)} kWh`, icon: "🌬️", cls: "blue", sub: "Lifetime production" },
+          { label: "Devices", val: stats.devices || 0, icon: "🔌", cls: "orange", sub: `${stats.active_offers || 0} active offers` },
+        ].map(s => (
+          <div key={s.label} className={`card stat-card ${s.cls}`}>
+            <div className="stat-icon">{s.icon}</div>
+            <div className="stat-label">{s.label}</div>
+            <div className={`stat-val ${s.cls}`}>{s.val}</div>
+            <div className="stat-change">{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-2">
+        <div className="card">
+          <div className="card-title">Trading Activity</div>
+          <div style={{ display: "flex", gap: 24, marginTop: 16 }}>
+            {[
+              { label: "Sales", val: stats.total_sales || 0, color: "var(--accent)" },
+              { label: "Purchases", val: stats.total_purchases || 0, color: "var(--blue2)" },
+            ].map(s => (
+              <div key={s.label}>
+                <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 4 }}>{s.label}</div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 32, fontWeight: 700, color: s.color }}>{s.val}</div>
+              </div>
+            ))}
+          </div>
+          <div className="divider" />
+          <div style={{ fontSize: 13, color: "var(--text3)" }}>Energy Credit Balance</div>
+          <div style={{ marginTop: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text3)", marginBottom: 4 }}>
+              <span>Available</span><span>{(balance.available_credits || 0).toFixed(2)} kWh</span>
+            </div>
+            <div className="energy-bar">
+              <div className="energy-bar-fill" style={{ width: `${Math.min(100, ((balance.available_credits || 0) / Math.max(1, balance.energy_credits)) * 100)}%` }} />
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-title">Recent Transactions</div>
+          {recent_transactions?.length === 0 && <div className="empty" style={{ padding: 20 }}><div className="empty-icon" style={{ fontSize: 24 }}>📭</div><div className="empty-text" style={{ fontSize: 12 }}>No transactions yet</div></div>}
+          {(recent_transactions || []).map(tx => (
+            <div key={tx.id} style={{ padding: "10px 0", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500 }} className={`tx-type-${tx.tx_type}`}>
+                  {tx.tx_type === "mint" ? "⚡ Minted" : "🔄 Traded"} {tx.energy_amount.toFixed(2)} kWh
+                </div>
+                <div className="hash-short" style={{ fontSize: 10, marginTop: 2 }}>{(tx.contract_hash || "").slice(0, 20)}...</div>
+              </div>
+              <span className={`badge ${tx.tx_type === "mint" ? "badge-green" : "badge-blue"}`}>{tx.tx_type}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── MARKETPLACE ───────────────────────────────────────────────
+function Marketplace({ toast, user }) {
+  const [offers, setOffers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [buyModal, setBuyModal] = useState(null);
+  const [buyAmount, setBuyAmount] = useState("");
+  const [buying, setBuying] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get("/marketplace/").then(r => setOffers(r.results || [])).catch(() => toast("error", "Failed to load marketplace")).finally(() => setLoading(false));
+  }, [refresh]);
+
+  const handleBuy = async () => {
+    if (!buyAmount || isNaN(buyAmount)) return;
+    setBuying(true);
+    try {
+      const result = await api.post("/buy/", { offer_id: buyModal.id, energy_amount: parseFloat(buyAmount) });
+      toast("success", "Purchase successful!", `${buyAmount} kWh acquired. TX: ${result.transaction_id?.slice(0,12)}...`);
+      setBuyModal(null); setBuyAmount(""); setRefresh(r => r + 1);
+    } catch (e) {
+      toast("error", "Purchase failed", e.error || JSON.stringify(e));
+    } finally {
+      setBuying(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="section-header">
+        <div><div className="section-title">Energy Marketplace</div><div className="section-sub">Buy renewable energy from other users</div></div>
+        <button className="btn btn-outline btn-sm" onClick={() => setRefresh(r => r + 1)}>⟳ Refresh</button>
+      </div>
+
+      {loading && <div className="loading"><div className="spinner" /></div>}
+      {!loading && offers.length === 0 && (
+        <div className="empty"><div className="empty-icon">🏪</div><div className="empty-text">No active offers. Create one to start trading!</div></div>
+      )}
+
+      <div className="grid grid-3">
+        {offers.map(offer => (
+          <div key={offer.id} className="offer-card">
+            <div className="offer-seller">
+              <span style={{ color: "var(--accent)" }}>⚡</span> {offer.seller?.username || offer.seller?.email}
+              {offer.device && <span style={{ marginLeft: 8, fontSize: 10 }}>({offer.device})</span>}
+            </div>
+            <div className="offer-amount">{offer.energy_amount.toFixed(2)} kWh</div>
+            <div className="offer-price">{offer.price_per_kwh.toFixed(4)} coins/kWh</div>
+            <div className="offer-avail">Available: {offer.available_amount.toFixed(2)} kWh · Total: {offer.total_value?.toFixed(2)} coins</div>
+            <div style={{ marginTop: 10 }}>
+              <div className="energy-bar">
+                <div className="energy-bar-fill" style={{ width: `${(offer.available_amount / offer.energy_amount) * 100}%` }} />
+              </div>
+            </div>
+            {offer.description && <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 8 }}>{offer.description}</div>}
+            <div className="offer-actions">
+              <button className="btn btn-primary btn-sm" style={{ flex: 1 }}
+                onClick={() => { setBuyModal(offer); setBuyAmount(offer.available_amount.toString()); }}
+                disabled={offer.seller?.id === user?.id}>
+                {offer.seller?.id === user?.id ? "Your Offer" : "Buy Now"}
+              </button>
+              <span className={`badge ${offer.status === "active" ? "badge-green" : "badge-yellow"}`}>{offer.status}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {buyModal && (
+        <div className="modal-overlay" onClick={() => setBuyModal(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">Buy Energy</div>
+              <button className="modal-close" onClick={() => setBuyModal(null)}>×</button>
+            </div>
+            <div style={{ background: "var(--bg3)", borderRadius: 8, padding: 16, marginBottom: 20 }}>
+              <div style={{ fontSize: 12, color: "var(--text3)" }}>Offer from {buyModal.seller?.username}</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700, marginTop: 4 }}>{buyModal.energy_amount.toFixed(2)} kWh</div>
+              <div style={{ color: "var(--accent)", fontSize: 13, marginTop: 4 }}>{buyModal.price_per_kwh.toFixed(4)} coins/kWh</div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Amount to buy (kWh)</label>
+              <input className="form-input" type="number" step="0.1" min="0.1" max={buyModal.available_amount}
+                value={buyAmount} onChange={e => setBuyAmount(e.target.value)} />
+              <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 4 }}>
+                Total cost: <span style={{ color: "var(--yellow)" }}>{(parseFloat(buyAmount || 0) * buyModal.price_per_kwh).toFixed(4)} coins</span>
+              </div>
+            </div>
+            <button className="btn btn-primary" style={{ width: "100%" }} onClick={handleBuy} disabled={buying}>
+              {buying ? <span className="spinner" /> : "Confirm Purchase"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── MY OFFERS ────────────────────────────────────────────────
+function MyOffers({ toast }) {
+  const [offers, setOffers] = useState([]);
+  const [devices, setDevices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ energy_amount: "", price_per_kwh: "", device_id: "", description: "" });
+  const [creating, setCreating] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+
+  useEffect(() => {
+    Promise.all([api.get("/marketplace/"), api.get("/devices/")]).then(([off, dev]) => {
+      setOffers(off.results || []); setDevices(dev.devices || []);
+    }).catch(() => toast("error", "Failed to load offers")).finally(() => setLoading(false));
+  }, [refresh]);
+
+  const createOffer = async () => {
+    setCreating(true);
+    try {
+      await api.post("/offers/", {
+        energy_amount: parseFloat(form.energy_amount),
+        price_per_kwh: parseFloat(form.price_per_kwh),
+        device_id: form.device_id || null,
+        description: form.description,
+      });
+      toast("success", "Offer created!", `${form.energy_amount} kWh listed at ${form.price_per_kwh} coins/kWh`);
+      setShowCreate(false); setForm({ energy_amount: "", price_per_kwh: "", device_id: "", description: "" });
+      setRefresh(r => r + 1);
+    } catch (e) {
+      toast("error", "Failed to create offer", e.error || JSON.stringify(e));
+    } finally { setCreating(false); }
+  };
+
+  const cancelOffer = async (id) => {
+    try {
+      await api.del(`/offers/${id}/`);
+      toast("success", "Offer cancelled");
+      setRefresh(r => r + 1);
+    } catch (e) { toast("error", "Failed", e.error || ""); }
+  };
+
+  return (
+    <div>
+      <div className="section-header">
+        <div><div className="section-title">My Offers</div><div className="section-sub">Manage your energy listings</div></div>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ Create Offer</button>
+      </div>
+
+      {loading && <div className="loading"><div className="spinner" /></div>}
+      {!loading && (
+        <div className="card">
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Amount</th><th>Price</th><th>Available</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+              <tbody>
+                {offers.length === 0 && <tr><td colSpan={6}><div className="empty"><div className="empty-icon">📋</div><div className="empty-text">No offers yet</div></div></td></tr>}
+                {offers.map(o => (
+                  <tr key={o.id}>
+                    <td><span className="mono">{o.energy_amount?.toFixed(2)} kWh</span></td>
+                    <td><span className="mono" style={{ color: "var(--accent)" }}>{o.price_per_kwh?.toFixed(4)}</span></td>
+                    <td><span className="mono">{o.available_amount?.toFixed(2)}</span></td>
+                    <td><span className={`badge ${o.status === "active" ? "badge-green" : o.status === "sold" ? "badge-gray" : "badge-yellow"}`}>{o.status}</span></td>
+                    <td><span style={{ fontSize: 12, color: "var(--text3)" }}>{new Date(o.created_at).toLocaleDateString()}</span></td>
+                    <td>{o.status === "active" && <button className="btn btn-danger btn-sm" onClick={() => cancelOffer(o.id)}>Cancel</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {showCreate && (
+        <div className="modal-overlay" onClick={() => setShowCreate(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">Create Energy Offer</div>
+              <button className="modal-close" onClick={() => setShowCreate(false)}>×</button>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Energy Amount (kWh)</label>
+                <input className="form-input" type="number" step="0.1" placeholder="100.0"
+                  value={form.energy_amount} onChange={e => setForm(p => ({ ...p, energy_amount: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Price per kWh (coins)</label>
+                <input className="form-input" type="number" step="0.0001" placeholder="0.05"
+                  value={form.price_per_kwh} onChange={e => setForm(p => ({ ...p, price_per_kwh: e.target.value }))} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Device (optional)</label>
+              <select className="form-input" value={form.device_id} onChange={e => setForm(p => ({ ...p, device_id: e.target.value }))}>
+                <option value="">Select device...</option>
+                {devices.map(d => <option key={d.id} value={d.id}>{d.name} ({d.device_type})</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Description</label>
+              <textarea className="form-input" placeholder="Wind energy from Almaty region..." rows={2}
+                value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
+            </div>
+            <button className="btn btn-primary" style={{ width: "100%" }} onClick={createOffer} disabled={creating}>
+              {creating ? <span className="spinner" /> : "Create Offer"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── DEVICES ───────────────────────────────────────────────────
+function Devices({ toast }) {
+  const [devices, setDevices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [showRecord, setShowRecord] = useState(null);
+  const [form, setForm] = useState({ name: "", device_type: "wind", capacity_kw: "", latitude: "", longitude: "" });
+  const [recordKwh, setRecordKwh] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+
+  useEffect(() => {
+    api.get("/devices/").then(r => setDevices(r.devices || [])).catch(() => toast("error", "Failed to load devices")).finally(() => setLoading(false));
+  }, [refresh]);
+
+  const createDevice = async () => {
+    setBusy(true);
+    try {
+      await api.post("/devices/", { ...form, capacity_kw: parseFloat(form.capacity_kw), latitude: form.latitude ? parseFloat(form.latitude) : null, longitude: form.longitude ? parseFloat(form.longitude) : null });
+      toast("success", "Device added!", form.name);
+      setShowCreate(false); setForm({ name: "", device_type: "wind", capacity_kw: "", latitude: "", longitude: "" });
+      setRefresh(r => r + 1);
+    } catch (e) { toast("error", "Failed", JSON.stringify(e)); } finally { setBusy(false); }
+  };
+
+  const recordEnergy = async () => {
+    if (!recordKwh) return;
+    setBusy(true);
+    try {
+      const res = await api.post("/energy/record/", { device_id: showRecord.id, energy_kwh: parseFloat(recordKwh) });
+      toast("success", "Energy recorded!", `${recordKwh} kWh minted. Block #${res.blockchain?.block_index}`);
+      setShowRecord(null); setRecordKwh(""); setRefresh(r => r + 1);
+    } catch (e) { toast("error", "Failed", e.error || ""); } finally { setBusy(false); }
+  };
+
+  const deviceIcon = { wind: "🌬️", solar: "☀️", hybrid: "⚡" };
+
+  return (
+    <div>
+      <div className="section-header">
+        <div><div className="section-title">Energy Devices</div><div className="section-sub">Manage your renewable energy sources</div></div>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>+ Add Device</button>
+      </div>
+
+      {loading && <div className="loading"><div className="spinner" /></div>}
+      <div className="grid grid-3">
+        {devices.map(d => (
+          <div key={d.id} className="card">
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <div style={{ width: 44, height: 44, background: "var(--bg3)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{deviceIcon[d.device_type] || "⚡"}</div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600 }}>{d.name}</div>
+                <div style={{ fontSize: 11, color: "var(--text3)", textTransform: "capitalize" }}>{d.device_type} · {d.capacity_kw} kW</div>
+              </div>
+            </div>
+            {d.latitude && <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 12 }}>📍 {d.latitude.toFixed(4)}, {d.longitude.toFixed(4)}</div>}
+            <button className="btn btn-primary btn-sm" style={{ width: "100%" }} onClick={() => setShowRecord(d)}>⚡ Record Energy</button>
+          </div>
+        ))}
+        {devices.length === 0 && !loading && (
+          <div className="card" style={{ gridColumn: "1/-1" }}><div className="empty"><div className="empty-icon">🔌</div><div className="empty-text">No devices yet. Add your first renewable energy source!</div></div></div>
+        )}
+      </div>
+
+      {showCreate && (
+        <div className="modal-overlay" onClick={() => setShowCreate(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><div className="modal-title">Add Energy Device</div><button className="modal-close" onClick={() => setShowCreate(false)}>×</button></div>
+            <div className="form-group"><label className="form-label">Device Name</label><input className="form-input" placeholder="Wind Turbine #1" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} /></div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Type</label>
+                <select className="form-input" value={form.device_type} onChange={e => setForm(p => ({ ...p, device_type: e.target.value }))}>
+                  <option value="wind">Wind Turbine</option><option value="solar">Solar Panel</option><option value="hybrid">Hybrid</option>
+                </select>
+              </div>
+              <div className="form-group"><label className="form-label">Capacity (kW)</label><input className="form-input" type="number" placeholder="2000" value={form.capacity_kw} onChange={e => setForm(p => ({ ...p, capacity_kw: e.target.value }))} /></div>
+            </div>
+            <div className="form-row">
+              <div className="form-group"><label className="form-label">Latitude</label><input className="form-input" type="number" placeholder="43.25" value={form.latitude} onChange={e => setForm(p => ({ ...p, latitude: e.target.value }))} /></div>
+              <div className="form-group"><label className="form-label">Longitude</label><input className="form-input" type="number" placeholder="76.90" value={form.longitude} onChange={e => setForm(p => ({ ...p, longitude: e.target.value }))} /></div>
+            </div>
+            <button className="btn btn-primary" style={{ width: "100%" }} onClick={createDevice} disabled={busy}>{busy ? <span className="spinner" /> : "Add Device"}</button>
+          </div>
+        </div>
+      )}
+
+      {showRecord && (
+        <div className="modal-overlay" onClick={() => setShowRecord(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><div className="modal-title">Record Energy Production</div><button className="modal-close" onClick={() => setShowRecord(null)}>×</button></div>
+            <div style={{ background: "var(--bg3)", padding: 14, borderRadius: 8, marginBottom: 20 }}>
+              <div style={{ fontSize: 12, color: "var(--text3)" }}>{showRecord.name}</div>
+              <div style={{ fontSize: 13, marginTop: 4 }}>{showRecord.device_type} · {showRecord.capacity_kw} kW rated</div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Energy Produced (kWh)</label>
+              <input className="form-input" type="number" step="0.1" placeholder="50.0" value={recordKwh} onChange={e => setRecordKwh(e.target.value)} />
+              <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 4 }}>Credits will be minted and recorded on blockchain</div>
+            </div>
+            <button className="btn btn-primary" style={{ width: "100%" }} onClick={recordEnergy} disabled={busy}>{busy ? <span className="spinner" /> : "⚡ Mint Energy Credits"}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── TRANSACTIONS ──────────────────────────────────────────────
+function Transactions({ toast }) {
+  const [txs, setTxs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get("/transactions/").then(r => setTxs(r.results || [])).catch(() => toast("error", "Failed")).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="loading"><div className="spinner" /></div>;
+
+  return (
+    <div>
+      <div className="section-header"><div><div className="section-title">Transaction History</div><div className="section-sub">All energy transactions recorded on blockchain</div></div></div>
+      <div className="card">
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Type</th><th>Amount</th><th>Price</th><th>Total</th><th>Party</th><th>Block</th><th>Hash</th><th>Date</th></tr></thead>
+            <tbody>
+              {txs.length === 0 && <tr><td colSpan={8}><div className="empty"><div className="empty-icon">📭</div><div className="empty-text">No transactions yet</div></div></td></tr>}
+              {txs.map(tx => (
+                <tr key={tx.id}>
+                  <td><span className={`badge ${tx.tx_type === "mint" ? "badge-green" : "badge-blue"}`}>{tx.tx_type === "mint" ? "⚡ Mint" : "🔄 Trade"}</span></td>
+                  <td><span className="mono">{tx.energy_amount?.toFixed(2)} kWh</span></td>
+                  <td><span className="mono">{tx.price_per_kwh?.toFixed(4)}</span></td>
+                  <td><span className="mono" style={{ color: "var(--yellow)" }}>{tx.total_price?.toFixed(4)}</span></td>
+                  <td><span style={{ fontSize: 12 }}>{tx.seller?.username || tx.buyer?.username || "—"}</span></td>
+                  <td><span className="mono" style={{ color: "var(--accent)" }}>#{tx.blockchain_block_index ?? "—"}</span></td>
+                  <td><span className="hash-short">{(tx.contract_hash || "").slice(0, 12)}...</span></td>
+                  <td><span style={{ fontSize: 11, color: "var(--text3)" }}>{new Date(tx.created_at).toLocaleDateString()}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── BLOCKCHAIN EXPLORER ───────────────────────────────────────
+function BlockchainExplorer({ toast }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [expandedBlock, setExpandedBlock] = useState(null);
+
+  useEffect(() => {
+    api.get("/blockchain/").then(setData).catch(() => toast("error", "Failed to load blockchain")).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="loading"><div className="spinner" /></div>;
+  if (!data) return null;
+
+  return (
+    <div>
+      <div className="section-header">
+        <div><div className="section-title">Blockchain Explorer</div><div className="section-sub">Immutable record of all energy transactions</div></div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <span className={`badge ${data.is_valid ? "badge-green" : "badge-red"}`}>{data.is_valid ? "✓ Valid Chain" : "✗ Invalid"}</span>
+          <span style={{ fontSize: 13, color: "var(--text3)" }}>{data.total_blocks} blocks</span>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {data.blocks?.length === 0 && <div className="empty"><div className="empty-icon">⛓️</div><div className="empty-text">No blocks yet. Start trading to populate the blockchain!</div></div>}
+        {(data.blocks || []).map(block => (
+          <div key={block.index} className="block-card" onClick={() => setExpandedBlock(expandedBlock === block.index ? null : block.index)} style={{ cursor: "pointer" }}>
+            <div className="block-header">
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div className="block-num">Block #{block.index}</div>
+                <span className="badge badge-green">{block.transaction_count} tx</span>
+              </div>
+              <div className="block-time">{new Date(block.timestamp * 1000).toLocaleString()}</div>
+            </div>
+            <div style={{ display: "flex", gap: 16, fontSize: 11, color: "var(--text3)" }}>
+              <span>Hash: <span className="hash-short">{block.block_hash?.slice(0, 20)}...</span></span>
+              <span>Prev: <span className="hash-short">{block.previous_hash?.slice(0, 20)}...</span></span>
+              <span>Nonce: <span style={{ color: "var(--yellow)" }}>{block.nonce}</span></span>
+            </div>
+            {expandedBlock === block.index && (
+              <div style={{ marginTop: 12, padding: 12, background: "var(--bg)", borderRadius: 8 }}>
+                <div style={{ fontSize: 10, color: "var(--text3)", marginBottom: 8 }}>FULL HASH</div>
+                <div className="hash">{block.block_hash}</div>
+                {block.transactions_data?.map((tx, i) => (
+                  <div key={i} style={{ marginTop: 12, padding: 10, background: "var(--bg3)", borderRadius: 6 }}>
+                    <div style={{ fontSize: 11, color: "var(--accent)", marginBottom: 4 }}>{tx.tx_type?.toUpperCase()} · {tx.energy_amount} kWh</div>
+                    <div className="hash">tx_id: {tx.transaction_id}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── WIND OPTIMIZATION ────────────────────────────────────────
+function WindOptimization({ toast }) {
+  const [form, setForm] = useState({ lat_min: "43.25", lat_max: "43.30", lon_min: "76.90", lon_max: "76.95", num_turbines: "3" });
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [histLoading, setHistLoading] = useState(true);
+
+  useEffect(() => {
+    api.get("/optimization-history/").then(r => setHistory(r.history || [])).catch(() => {}).finally(() => setHistLoading(false));
+  }, []);
+
+  const runOptimization = async () => {
+    setLoading(true); setResult(null);
+    try {
+      const res = await api.post("/optimize-wind/", {
+        coordinates: { lat_min: parseFloat(form.lat_min), lat_max: parseFloat(form.lat_max), lon_min: parseFloat(form.lon_min), lon_max: parseFloat(form.lon_max) },
+        num_turbines: parseInt(form.num_turbines)
+      });
+      setResult(res);
+      toast("success", "Optimization complete!", `Found ${res.optimal_points?.length} optimal positions`);
+    } catch (e) {
+      toast("error", "Optimization failed", e.error || JSON.stringify(e));
+    } finally { setLoading(false); }
+  };
+
+  // Wind grid visualization
+  const renderWindGrid = (points) => {
+    if (!points || points.length === 0) return null;
+    const effValues = points.map(p => p.efficiency);
+    const maxEff = Math.max(...effValues);
+    const minEff = Math.min(...effValues);
+
+    return (
+      <div className="wind-grid">
+        {points.slice(0, 64).map((p, i) => {
+          const norm = maxEff === minEff ? 0.5 : (p.efficiency - minEff) / (maxEff - minEff);
+          const r = Math.round(norm * 0);
+          const g = Math.round(80 + norm * 149);
+          const b = Math.round(norm * 80);
+          const alpha = 0.3 + norm * 0.7;
+          const isTurbine = result?.optimal_points?.some(op => Math.abs(op.lat - p.lat) < 0.001 && Math.abs(op.lon - p.lon) < 0.001);
+          return (
+            <div key={i} className="wind-cell"
+              style={{ background: `rgba(${r},${g},${b},${alpha})`, fontSize: isTurbine ? 16 : 10 }}
+              title={`${p.lat?.toFixed(4)}, ${p.lon?.toFixed(4)} · eff: ${(p.efficiency * 100)?.toFixed(1)}%`}>
+              {isTurbine ? "⚡" : ""}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <div className="section-header"><div><div className="section-title">Wind Optimization (AI)</div><div className="section-sub">CNN-powered turbine placement using MindSpore + Open-Meteo data</div></div></div>
+      <div className="grid grid-2" style={{ marginBottom: 24 }}>
+        <div className="card">
+          <div className="card-title" style={{ marginBottom: 16 }}>Define Search Area</div>
+          <div className="form-row">
+            <div className="form-group"><label className="form-label">Lat Min</label><input className="form-input" type="number" step="0.01" value={form.lat_min} onChange={e => setForm(p => ({ ...p, lat_min: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label">Lat Max</label><input className="form-input" type="number" step="0.01" value={form.lat_max} onChange={e => setForm(p => ({ ...p, lat_max: e.target.value }))} /></div>
+          </div>
+          <div className="form-row">
+            <div className="form-group"><label className="form-label">Lon Min</label><input className="form-input" type="number" step="0.01" value={form.lon_min} onChange={e => setForm(p => ({ ...p, lon_min: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label">Lon Max</label><input className="form-input" type="number" step="0.01" value={form.lon_max} onChange={e => setForm(p => ({ ...p, lon_max: e.target.value }))} /></div>
+          </div>
+          <div className="form-group"><label className="form-label">Number of Turbines</label><input className="form-input" type="number" min="1" max="20" value={form.num_turbines} onChange={e => setForm(p => ({ ...p, num_turbines: e.target.value }))} /></div>
+          <button className="btn btn-primary" style={{ width: "100%" }} onClick={runOptimization} disabled={loading}>
+            {loading ? <><span className="spinner" /> Running AI Optimization...</> : "🌬️ Run Wind Optimization"}
+          </button>
+          {loading && <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 8, textAlign: "center" }}>Fetching wind data + running CNN model... (~30s)</div>}
+        </div>
+
+        <div className="card">
+          <div className="card-title">Area Preview</div>
+          <div className="map-container" style={{ height: 280 }}>
+            {result ? (
+              renderWindGrid(result.turbine_details?.map(t => ({ lat: t.latitude, lon: t.longitude, efficiency: t.efficiency })) || result.optimal_points)
+            ) : (
+              <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8 }}>
+                <div style={{ fontSize: 32 }}>🗺️</div>
+                <div style={{ fontSize: 13, color: "var(--text3)" }}>Run optimization to see wind map</div>
+                <div style={{ fontSize: 11, color: "var(--text3)" }}>Area: ({form.lat_min}–{form.lat_max}, {form.lon_min}–{form.lon_max})</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {result && (
+        <div className="grid grid-2" style={{ marginBottom: 24 }}>
+          <div className="card card-accent">
+            <div className="card-title">Energy Predictions</div>
+            {[
+              { label: "1 Month", val: result.predicted_energy?.["1_month"] },
+              { label: "3 Months", val: result.predicted_energy?.["3_months"] },
+              { label: "6 Months", val: result.predicted_energy?.["6_months"] },
+              { label: "12 Months", val: result.predicted_energy?.["12_months"] },
+            ].map(e => (
+              <div key={e.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+                <span style={{ fontSize: 13, color: "var(--text3)" }}>{e.label}</span>
+                <span style={{ fontFamily: "var(--font-mono)", color: "var(--accent)", fontWeight: 700 }}>{e.val}</span>
+              </div>
+            ))}
+            <div style={{ marginTop: 12, padding: 10, background: "var(--bg3)", borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: "var(--text3)" }}>Avg Wind Speed: <span style={{ color: "var(--blue2)" }}>{result.environmental_summary?.avg_wind_speed}</span></div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-title">Optimal Turbine Positions ({result.optimal_points?.length})</div>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>#</th><th>Latitude</th><th>Longitude</th><th>Efficiency</th></tr></thead>
+                <tbody>
+                  {result.optimal_points?.map((p, i) => (
+                    <tr key={i}>
+                      <td><span className="mono" style={{ color: "var(--accent)" }}>#{i + 1}</span></td>
+                      <td><span className="mono">{p.lat?.toFixed(4)}</span></td>
+                      <td><span className="mono">{p.lon?.toFixed(4)}</span></td>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div className="energy-bar" style={{ width: 60 }}><div className="energy-bar-fill" style={{ width: `${(p.efficiency * 100).toFixed(0)}%` }} /></div>
+                          <span className="mono" style={{ color: "var(--accent)" }}>{(p.efficiency * 100).toFixed(1)}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="card">
+        <div className="section-header" style={{ marginBottom: 16 }}><div className="section-title">Optimization History</div></div>
+        {histLoading ? <div className="loading"><div className="spinner" /></div> : (
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Date</th><th>Turbines</th><th>Status</th><th>Energy (12mo)</th></tr></thead>
+              <tbody>
+                {history.length === 0 && <tr><td colSpan={4}><div className="empty" style={{ padding: 20 }}><div className="empty-icon" style={{ fontSize: 24 }}>🌬️</div><div className="empty-text" style={{ fontSize: 12 }}>No optimization history</div></div></td></tr>}
+                {history.map(h => (
+                  <tr key={h.id}>
+                    <td style={{ fontSize: 12 }}>{new Date(h.created_at).toLocaleDateString()}</td>
+                    <td><span className="mono">{h.num_turbines}</span></td>
+                    <td><span className={`badge ${h.status === "completed" ? "badge-green" : "badge-yellow"}`}>{h.status}</span></td>
+                    <td><span className="mono" style={{ color: "var(--accent)" }}>{h.energy_12_months || "—"}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── PROFILE ───────────────────────────────────────────────────
+function Profile({ user, toast, onLogout }) {
+  const [balance, setBalance] = useState(null);
+
+  useEffect(() => {
+    api.get("/balance/").then(setBalance).catch(() => {});
+  }, []);
+
+  return (
+    <div>
+      <div className="section-header"><div><div className="section-title">Profile</div><div className="section-sub">Your account and energy portfolio</div></div></div>
+      <div className="grid grid-2">
+        <div className="card">
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "linear-gradient(135deg, var(--accent), var(--blue))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, fontWeight: 700, color: "#06090f" }}>
+              {(user?.username || user?.email || "U")[0].toUpperCase()}
+            </div>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 600 }}>{user?.username}</div>
+              <div style={{ fontSize: 13, color: "var(--text3)" }}>{user?.email}</div>
+              <span className={`badge ${user?.is_company ? "badge-blue" : "badge-green"}`} style={{ marginTop: 6 }}>{user?.is_company ? "Company" : "Individual"}</span>
+            </div>
+          </div>
+          <button className="btn btn-danger btn-sm" onClick={onLogout}>Sign Out</button>
+        </div>
+
+        {balance && (
+          <div className="card card-accent">
+            <div className="card-title">Energy Portfolio</div>
+            <div style={{ marginTop: 16 }}>
+              {[
+                { label: "Total Credits", val: `${balance.energy_credits?.toFixed(2)} kWh`, color: "var(--accent)" },
+                { label: "Available", val: `${balance.available_credits?.toFixed(2)} kWh`, color: "var(--text)" },
+                { label: "Locked", val: `${balance.locked_credits?.toFixed(2)} kWh`, color: "var(--orange)" },
+                { label: "Coin Balance", val: `${balance.coin_balance?.toFixed(2)} VoltCoins`, color: "var(--yellow)" },
+              ].map(item => (
+                <div key={item.label} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+                  <span style={{ fontSize: 13, color: "var(--text3)" }}>{item.label}</span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: item.color }}>{item.val}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── SIDEBAR NAV ───────────────────────────────────────────────
+const NAV = [
+  { id: "dashboard", icon: "◼", label: "Dashboard", section: "main" },
+  { id: "marketplace", icon: "🏪", label: "Marketplace", section: "trading" },
+  { id: "offers", icon: "📋", label: "My Offers", section: "trading" },
+  { id: "devices", icon: "⚡", label: "Devices", section: "energy" },
+  { id: "wind", icon: "🌬️", label: "Wind AI", section: "energy" },
+  { id: "transactions", icon: "🔄", label: "Transactions", section: "history" },
+  { id: "blockchain", icon: "⛓️", label: "Blockchain", section: "history" },
+  { id: "profile", icon: "👤", label: "Profile", section: "account" },
+];
+
+// ── APP ────────────────────────────────────────────────────────
+function App() {
+  const [user, setUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("voltai_user")); } catch { return null; }
+  });
+  const [page, setPage] = useState("dashboard");
+  const { toasts, add: toast, remove } = useToast();
+  const [balance, setBalance] = useState(null);
+
+  const showToast = (type, title, msg) => toast(type, title, msg);
+
+  const fetchBalance = useCallback(() => {
+    if (!user) return;
+    api.get("/balance/").then(setBalance).catch(() => {});
+  }, [user]);
+
+  useEffect(() => { fetchBalance(); }, [fetchBalance, page]);
+
+  const handleLogin = (u) => { setUser(u); setPage("dashboard"); };
+  const handleLogout = () => {
+    localStorage.clear(); setUser(null); setBalance(null); setPage("dashboard");
+  };
+
+  if (!user) return <>
+    <AuthPage onLogin={handleLogin} />
+    <Toast toasts={toasts} remove={remove} />
+  </>;
+
+  const sections = [...new Set(NAV.map(n => n.section))];
+  const sectionLabels = { main: "Main", trading: "Trading", energy: "Energy", history: "History", account: "Account" };
+
+  const renderPage = () => {
+    const props = { toast: showToast, user };
+    switch (page) {
+      case "dashboard": return <Dashboard {...props} />;
+      case "marketplace": return <Marketplace {...props} />;
+      case "offers": return <MyOffers {...props} />;
+      case "devices": return <Devices {...props} />;
+      case "wind": return <WindOptimization {...props} />;
+      case "transactions": return <Transactions {...props} />;
+      case "blockchain": return <BlockchainExplorer {...props} />;
+      case "profile": return <Profile {...props} onLogout={handleLogout} />;
+      default: return <Dashboard {...props} />;
+    }
+  };
+
+  const curNav = NAV.find(n => n.id === page);
+
+  return (
+    <div className="app">
+      <aside className="sidebar">
+        <div className="sidebar-logo">
+          <div className="logo-icon">V</div>
+          <div><div className="logo-text">VoltAI</div><div className="logo-sub">Energy Platform</div></div>
+        </div>
+        <nav className="nav">
+          {sections.map(sec => (
+            <div key={sec} className="nav-section">
+              <div className="nav-label">{sectionLabels[sec]}</div>
+              {NAV.filter(n => n.section === sec).map(n => (
+                <button key={n.id} className={`nav-item ${page === n.id ? "active" : ""}`} onClick={() => setPage(n.id)}>
+                  <span className="icon">{n.icon}</span>
+                  <span>{n.label}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <div className="sidebar-user">
+          <div className="user-avatar">{(user?.username || "U")[0].toUpperCase()}</div>
+          <div className="user-info">
+            <div className="user-name">{user?.username}</div>
+            <div className="user-role">{user?.is_company ? "Company" : "Individual"}</div>
+          </div>
+        </div>
+      </aside>
+
+      <div className="main">
+        <div className="topbar">
+          <div className="topbar-title">{curNav?.icon} {curNav?.label}</div>
+          <div className="topbar-actions">
+            {balance && (
+              <div className="balance-pill">
+                <span>⚡ <span className="credits">{(balance.available_credits || 0).toFixed(2)}</span> kWh</span>
+                <span style={{ color: "var(--text3)" }}>·</span>
+                <span>🪙 <span className="coins">{(balance.coin_balance || 0).toFixed(2)}</span></span>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="page-content">{renderPage()}</div>
+      </div>
+
+      <Toast toasts={toasts} remove={remove} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
