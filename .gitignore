@@ -14,3 +14,41 @@ env/
 .idea/
 .vscode/
 *.sqlite3
+
+# Файлы окружения
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Исключение: обычно .env.example оставляют в Git как шаблон
+!.env.example
+
+# Зависимости
+node_modules/
+
+# Результат сборки Next.js
+.next/
+out/
+
+# Сборка статики (если используете старый подход)
+build/
+
+# Кэш инструментов
+.eslintcache
+.stylelintcache
+
+# TypeScript (если билд генерирует декларации отдельно)
+*.tsbuildinfo
+next-env.d.ts
+
+# Логи
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Системные файлы
+.DS_Store
+*.pem
