@@ -23,8 +23,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             '--obs-key',
-            default='models/wind_cnn_best.ckpt',
-            help='OBS object key (default: models/wind_cnn_best.ckpt)'
+            default='voltai-model-deploy/wind_cnn_best.ckpt',
+            help='OBS object key (default: voltai-model-deploy/wind_cnn_best.ckpt)'
         )
         parser.add_argument(
             '--local-path',
