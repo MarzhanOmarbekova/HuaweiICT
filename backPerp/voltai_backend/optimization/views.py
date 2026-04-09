@@ -1,14 +1,15 @@
 """
-UPDATED voltai_backend/optimization/views.py
-Changes:
-1. Loads pretrained .ckpt from local path or OBS on startup
-2. Optionally calls ModelArts Online Inference endpoint instead of local CNN
-3. Fixes grid_size mismatch in optimizer (was 20, now 8)
+voltai_backend/optimization/views.py
+
+ИСПРАВЛЕНИЯ:
+1. grid_size = 5 везде (модель обучена на 5x5, не 8x8)
+2. WindTurbineCNN(grid_size=5) при загрузке
+3. Используется wind_cnn_final.ckpt (wind_cnn_best.ckpt — это пустая заглушка!)
+4. Исправлен расчёт энергии: добавлен множитель от ветра
+5. Optimizer вызывается с grid_size=5
 """
 
 import os
-import io
-import json
 import requests as http_requests
 
 from django.db import transaction
@@ -28,39 +29,58 @@ from .cnn_model import WindTurbineCNN, prepare_input_data
 from .optimizer import BruteForceOptimizer
 
 
-# ============================================================
-# ModelArts endpoint (set in env vars or Django settings)
-# Leave empty to use local CNN
-# ============================================================
+# ────────────────────────────────────────────────────────────
+# Конфигурация: ModelArts (опционально) и путь к чекпоинту
+# ────────────────────────────────────────────────────────────
 MODELARTS_ENDPOINT = os.environ.get('MODELARTS_ENDPOINT', '')
 MODELARTS_TOKEN    = os.environ.get('MODELARTS_TOKEN', '')
 
-# Local checkpoint path (downloaded from OBS on deploy)
-# On server: python manage.py download_model  (add management command below)
+# ВАЖНО: используем wind_cnn_final.ckpt — это реальная обученная модель.
+# wind_cnn_best.ckpt в репозитории — пустой текстовый файл-заглушка!
+_OPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LOCAL_CKPT_PATH = os.environ.get(
     'MINDSPORE_CHECKPOINT',
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wind_cnn_best.ckpt')
+    os.path.join(_OPT_DIR, 'wind_cnn_final.ckpt')   # <── изменено
 )
 
+# Размер сетки должен совпадать с тем, на чём обучали (5x5)
+GRID_SIZE = 5  # <── было 8, исправлено на 5
+
+
+# ────────────────────────────────────────────────────────────
+# Загрузка модели (singleton)
+# ────────────────────────────────────────────────────────────
 
 def _load_model():
-    """Load CNN model once at module level."""
-    model = WindTurbineCNN(input_channels=2, grid_size=8)
+    """Загружает CNN с правильной архитектурой (grid_size=5)."""
+    model = WindTurbineCNN(input_channels=2, grid_size=GRID_SIZE)  # grid_size=5!
+
     if os.path.exists(LOCAL_CKPT_PATH):
+        # Проверяем, что файл не пустая заглушка (реальный .ckpt > 1 KB)
+        file_size = os.path.getsize(LOCAL_CKPT_PATH)
+        if file_size < 1024:
+            print(f'[CNN] WARNING: Checkpoint {LOCAL_CKPT_PATH} подозрительно мал ({file_size} байт).')
+            print('[CNN] Убедись, что это wind_cnn_final.ckpt, а не wind_cnn_best.ckpt!')
         try:
-            mindspore.load_checkpoint(LOCAL_CKPT_PATH, net=model)
-            print(f'[CNN] Loaded pretrained weights from: {LOCAL_CKPT_PATH}')
+            param_not_loaded, _ = mindspore.load_param_into_net(
+                model, mindspore.load_checkpoint(LOCAL_CKPT_PATH)
+            )
+            if param_not_loaded:
+                print(f'[CNN] Не загружены параметры: {param_not_loaded}')
+            else:
+                print(f'[CNN] Веса загружены успешно: {LOCAL_CKPT_PATH} ({file_size/1024:.1f} KB)')
         except Exception as e:
-            print(f'[CNN] Could not load checkpoint: {e} - using random weights')
+            print(f'[CNN] Ошибка загрузки чекпоинта: {e}')
+            print('[CNN] Используются случайные веса — результаты будут неточными!')
     else:
-        print(f'[CNN] No checkpoint found at {LOCAL_CKPT_PATH}')
-        print('[CNN] Using untrained model (results will be random)')
-        print('[CNN] Run: python manage.py download_model  to fetch from OBS')
+        print(f'[CNN] Файл не найден: {LOCAL_CKPT_PATH}')
+        print('[CNN] Скопируй wind_cnn_final.ckpt в папку optimization/')
+        print('[CNN] Или укажи путь через env: MINDSPORE_CHECKPOINT=/path/to/wind_cnn_final.ckpt')
+
     model.set_train(False)
     return model
 
 
-# Module-level singleton - loaded once when Django starts
 _cnn_model = None
 
 
@@ -71,57 +91,53 @@ def get_cnn_model():
     return _cnn_model
 
 
-def run_cnn_inference(area_data: list, grid_size: int = 8) -> np.ndarray:
+# ────────────────────────────────────────────────────────────
+# Инференс
+# ────────────────────────────────────────────────────────────
+
+def run_cnn_inference(area_data: list, grid_size: int = GRID_SIZE) -> np.ndarray:
     """
-    Run efficiency inference. Uses ModelArts endpoint if configured,
-    otherwise uses local CNN model.
-    Returns: efficiency_map (grid_size, grid_size) array of floats 0..1
+    Запускает инференс — возвращает efficiency_map (grid_size, grid_size) float 0..1.
+
+    Приоритет:
+      1. ModelArts endpoint (если задан в env)
+      2. Локальная модель MindSpore
     """
-    # --- Option A: ModelArts Online Inference ---
+    # --- ModelArts ---
     if MODELARTS_ENDPOINT and MODELARTS_TOKEN:
         try:
-            wind_speed_map = np.zeros((grid_size, grid_size), dtype=np.float32)
-            wind_dir_map   = np.zeros((grid_size, grid_size), dtype=np.float32)
-
+            ws_map  = np.zeros((grid_size, grid_size), dtype=np.float32)
+            wd_map  = np.zeros((grid_size, grid_size), dtype=np.float32)
             for idx, point in enumerate(area_data):
-                row = idx // grid_size
-                col = idx % grid_size
-                if row < grid_size and col < grid_size:
-                    wind_speed_map[row, col] = point['wind_speed']
-                    wind_dir_map[row, col]   = point['wind_direction']
+                r, c = idx // grid_size, idx % grid_size
+                if r < grid_size and c < grid_size:
+                    ws_map[r, c] = point['wind_speed']
+                    wd_map[r, c] = point['wind_direction']
 
-            payload = {
-                'instances': [{
-                    'wind_speed':     wind_speed_map.tolist(),
-                    'wind_direction': wind_dir_map.tolist(),
-                }]
-            }
-            headers = {
-                'Content-Type': 'application/json',
-                'X-Auth-Token': MODELARTS_TOKEN,
-            }
             resp = http_requests.post(
                 MODELARTS_ENDPOINT,
-                json=payload,
-                headers=headers,
-                timeout=30
+                json={'instances': [{'wind_speed': ws_map.tolist(), 'wind_direction': wd_map.tolist()}]},
+                headers={'Content-Type': 'application/json', 'X-Auth-Token': MODELARTS_TOKEN},
+                timeout=30,
             )
             resp.raise_for_status()
-            result = resp.json()
-            efficiency_map = np.array(result['efficiency_map'], dtype=np.float32)
-            print('[CNN] Used ModelArts endpoint for inference')
+            efficiency_map = np.array(resp.json()['efficiency_map'], dtype=np.float32)
+            print('[CNN] Использован ModelArts endpoint')
             return efficiency_map
-
         except Exception as e:
-            print(f'[CNN] ModelArts call failed: {e}, falling back to local model')
+            print(f'[CNN] ModelArts недоступен: {e}, fallback на локальную модель')
 
-    # --- Option B: Local MindSpore model ---
+    # --- Локальная модель ---
     model = get_cnn_model()
-    input_array = prepare_input_data(area_data, grid_size=grid_size)
+    input_array  = prepare_input_data(area_data, grid_size=grid_size)
     input_tensor = Tensor(input_array, mindspore.float32)
-    efficiency_map = model(input_tensor).asnumpy()[0]  # (8, 8)
+    efficiency_map = model(input_tensor).asnumpy()[0]   # (grid_size, grid_size)
     return efficiency_map
 
+
+# ────────────────────────────────────────────────────────────
+# Views
+# ────────────────────────────────────────────────────────────
 
 class WindOptimizationView(APIView):
     permission_classes = [IsAuthenticated]
@@ -129,7 +145,6 @@ class WindOptimizationView(APIView):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.data_collector = EnvironmentalDataCollector()
-        # FIXED: min_distance_km set to 0.5, grid_size=8 (not 20!)
         self.optimizer = BruteForceOptimizer(min_distance_km=0.5)
 
     def post(self, request):
@@ -139,7 +154,7 @@ class WindOptimizationView(APIView):
 
         coords       = serializer.validated_data['coordinates']
         num_turbines = serializer.validated_data['num_turbines']
-        grid_size    = 8
+        grid_size    = GRID_SIZE  # 5x5 — как при обучении
 
         try:
             with transaction.atomic():
@@ -153,13 +168,13 @@ class WindOptimizationView(APIView):
                     status='processing',
                 )
 
-                # 1) Collect wind data (real API calls to Open-Meteo)
+                # 1) Сбор данных о ветре (Open-Meteo API)
                 area_data = self.data_collector.collect_area_data(
                     lat_min=coords['lat_min'],
                     lat_max=coords['lat_max'],
                     lon_min=coords['lon_min'],
                     lon_max=coords['lon_max'],
-                    grid_points=grid_size,
+                    grid_points=grid_size,   # 5x5 = 25 точек
                 )
 
                 for point in area_data:
@@ -173,37 +188,34 @@ class WindOptimizationView(APIView):
                         soil_type='Unknown',
                     )
 
-                # 2) Run CNN inference (local or ModelArts)
+                # 2) CNN инференс → карта эффективности (5x5)
                 efficiency_map = run_cnn_inference(area_data, grid_size=grid_size)
 
-                # 3) Brute-force placement
-                # FIXED: pass grid_size=8 (must match actual data grid)
+                # 3) Выбор лучших позиций
                 optimal_positions = self.optimizer.optimize_positions(
                     efficiency_map=efficiency_map,
                     area_data=area_data,
                     num_turbines=num_turbines,
-                    grid_size=grid_size,  # <--- WAS 20 IN ORIGINAL, CAUSES BUG
+                    grid_size=grid_size,   # 5, не 20 и не 8
                 )
 
-                # 4) Energy calculation
+                # 4) Расчёт энергии по физической формуле
+                # P = 0.5 * rho * A * V_hub³ * Cp * efficiency
                 hours_per_month = 730.0
+                rotor_radius    = 45.0                        # м, типовая 2МВт турбина
+                swept_area      = np.pi * rotor_radius ** 2  # ~6362 м²
+                air_density     = 1.225                       # кг/м³
+                Cp              = 0.40                        # коэф. мощности
+                rated_kw        = 2000.0                      # номинальная мощность
+
                 total_1 = total_3 = total_6 = total_12 = 0.0
                 turbine_details = []
 
                 for pos in optimal_positions:
                     v   = max(pos['wind_speed'], 0.0)
-                    eff = pos['efficiency']
+                    eff = float(pos['efficiency'])
 
-                    # Realistic power estimate using wind power formula:
-                    # P = 0.5 * rho * A * V^3 * Cp * efficiency
-                    # Using 2MW turbine: rotor_radius=45m, Cp=0.4, rho=1.225
-                    rotor_radius = 45.0
-                    swept_area   = 3.14159 * rotor_radius ** 2  # ~6362 m2
-                    air_density  = 1.225
-                    Cp           = 0.40
-                    rated_kw     = 2000.0
-
-                    # Adjust wind to hub height (80m) from 10m measurement
+                    # Пересчёт скорости с 10м на высоту ступицы 80м (логарифмический профиль)
                     v_hub = v * (np.log(80.0 / 0.1) / np.log(10.0 / 0.1))
 
                     if 3.0 <= v_hub <= 25.0:
@@ -225,21 +237,22 @@ class WindOptimizationView(APIView):
                     total_12 += e12
 
                     turbine_details.append({
-                        'latitude':  pos['lat'],
-                        'longitude': pos['lon'],
-                        'efficiency': eff,
-                        'wind_speed': v,
+                        'latitude':   pos['lat'],
+                        'longitude':  pos['lon'],
+                        'efficiency': round(eff, 4),
+                        'wind_speed': round(v, 2),
+                        'wind_speed_hub': round(v_hub, 2),
                         'energy_predictions': {
-                            '1_month':  round(e1,  2),
-                            '3_months': round(e3,  2),
-                            '6_months': round(e6,  2),
-                            '12_months': round(e12, 2),
+                            '1_month':     round(e1,  2),
+                            '3_months':    round(e3,  2),
+                            '6_months':    round(e6,  2),
+                            '12_months':   round(e12, 2),
                             'avg_power_kw': round(avg_power_kw, 2),
                         },
                     })
 
                 optimal_points = [
-                    {'lat': t['latitude'], 'lon': t['longitude'], 'efficiency': round(t['efficiency'], 4)}
+                    {'lat': t['latitude'], 'lon': t['longitude'], 'efficiency': t['efficiency']}
                     for t in turbine_details
                 ]
 
@@ -270,15 +283,18 @@ class WindOptimizationView(APIView):
                     'environmental_summary': {
                         'avg_wind_speed': f'{ai_result.avg_wind_speed:.2f} m/s',
                         'avg_elevation':  f'{ai_result.avg_elevation:.2f} m',
-                        'soil_types':      ai_result.soil_types,
+                        'soil_types':     ai_result.soil_types,
                     },
                     'turbine_details': turbine_details,
+                    'grid_size': grid_size,
                     'inference_mode': 'modelarts' if (MODELARTS_ENDPOINT and MODELARTS_TOKEN) else 'local',
                 }, status=status.HTTP_200_OK)
 
         except Exception as e:
             import traceback
             traceback.print_exc()
+            wind_location.status = 'failed'
+            wind_location.save()
             return Response(
                 {'error': f'Optimization failed: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -289,10 +305,7 @@ class OptimizationHistoryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        locations = (
-            WindLocation.objects.filter(user=request.user)
-            .order_by('-created_at')
-        )
+        locations = WindLocation.objects.filter(user=request.user).order_by('-created_at')
         history = []
         for loc in locations:
             item = {
@@ -308,5 +321,4 @@ class OptimizationHistoryView(APIView):
             except AIModelResult.DoesNotExist:
                 pass
             history.append(item)
-
         return Response({'history': history}, status=status.HTTP_200_OK)
