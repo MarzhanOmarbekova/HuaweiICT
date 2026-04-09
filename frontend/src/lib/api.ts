@@ -1,6 +1,19 @@
-// src/lib/api.ts
+// // src/lib/api.ts
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+
+// 🔥 Force logout on app load (ONLY for dev behavior)
+if (typeof window !== "undefined") {
+  const alreadyCleared = sessionStorage.getItem("auth_cleared");
+
+  if (!alreadyCleared) {
+    localStorage.removeItem("voltai_token");
+    localStorage.removeItem("voltai_refresh");
+    localStorage.removeItem("voltai_user");
+
+    sessionStorage.setItem("auth_cleared", "true");
+  }
+}
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -19,9 +32,21 @@ function getHeaders(
   return h;
 }
 
+// ✅ FIX: handle 401 → auto logout
 async function handleResponse<T>(res: Response): Promise<T> {
+  if (res.status === 401) {
+    clearAuthData();
+
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+
+    throw new Error("Unauthorized");
+  }
+
   const data = await res.json();
   if (!res.ok) throw data;
+
   return data as T;
 }
 
