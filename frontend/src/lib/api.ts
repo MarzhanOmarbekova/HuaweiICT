@@ -224,6 +224,12 @@ export interface OptimizationHistory {
   created_at: string;
   num_turbines: number;
   status: string;
+  optimal_points: any[];
+  // Добавь эти строки:
+  energy_1_month?: string;
+  energy_3_months?: string;
+  energy_6_months?: string;
   energy_12_months?: string;
-  optimal_points?: OptimalPoint[];
+  avg_wind_speed?: string;
+  avg_elevation?: string;
 }

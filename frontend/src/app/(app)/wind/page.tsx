@@ -43,8 +43,15 @@ export default function WindPage({ addToast }: PageProps) {
 
 
     const handleReset = () => {
-    setResult(null);
-  };
+        setResult(null);
+        setSelectedHistoryId(null);
+        setCoords({
+            lat_min: 0,
+            lat_max: 0,
+            lon_min: 0,
+            lon_max: 0,
+        });
+    };
 
   useEffect(() => {
     api
@@ -238,13 +245,15 @@ export default function WindPage({ addToast }: PageProps) {
                 }}
               />
             </div>
-            <Button
-              variant="primary"
-              loading={running}
-              onClick={runOptimization}
-            >
-              {running ? "Running CNN..." : "Run Optimization"}
-            </Button>
+              <Button
+                  variant="primary"
+                  loading={running}
+                  onClick={runOptimization}
+              >
+                  {running ? "Running CNN..." : "Run Optimization"}
+              </Button>
+
+
           </div>
 
           {/* Results */}
@@ -392,8 +401,6 @@ export default function WindPage({ addToast }: PageProps) {
                     "Latitude",
                     "Longitude",
                     "Efficiency",
-                    "Wind Speed",
-                    "12-Month kWh",
                   ].map((h) => (
                     <th
                       key={h}
@@ -503,38 +510,6 @@ export default function WindPage({ addToast }: PageProps) {
                         </span>
                       </div>
                     </td>
-                    <td
-                      style={{
-                        padding: "12px 14px",
-                        borderBottom: "1px solid var(--border)",
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontFamily: "var(--font-mono)",
-                          fontSize: "13px",
-                          color: "var(--blue-light)",
-                        }}
-                      >
-                        {t.wind_speed.toFixed(2)} m/s
-                      </span>
-                    </td>
-                    <td
-                      style={{
-                        padding: "12px 14px",
-                        borderBottom: "1px solid var(--border)",
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontFamily: "var(--font-mono)",
-                          fontSize: "13px",
-                          color: "var(--amber)",
-                        }}
-                      >
-                        {t.energy_predictions["12_months"].toFixed(2)}
-                      </span>
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -615,13 +590,10 @@ export default function WindPage({ addToast }: PageProps) {
                             if (!h.optimal_points?.length) return;
                             setSelectedHistoryId(h.id);
 
-                            // 1. Вычисляем крайние точки (bounding box) для зума
+                            // 1. Центрируем карту (тот же код)
                             const lats = h.optimal_points.map(p => p.lat);
                             const lons = h.optimal_points.map(p => p.lon);
-
-                            // Добавляем небольшой отступ (padding), чтобы точки не прилипали к краям экрана
                             const padding = 0.02;
-
                             setCoords({
                                 lat_min: Math.min(...lats) - padding,
                                 lat_max: Math.max(...lats) + padding,
@@ -629,23 +601,35 @@ export default function WindPage({ addToast }: PageProps) {
                                 lon_max: Math.max(...lons) + padding,
                             });
 
-                            // 2. Создаём фейковый result чтобы показать точки на карте (твой оригинальный код)
+                            // 2. Заполняем результат данными, которые теперь приходят из OptimizationHistoryView
                             setResult({
                                 location_id: h.id,
                                 optimal_points: h.optimal_points,
                                 predicted_energy: {
-                                    '1_month': '-',
-                                    '3_months': '-',
-                                    '6_months': '-',
+                                    '1_month': h.energy_1_month || '-',
+                                    '3_months': h.energy_3_months || '-',
+                                    '6_months': h.energy_6_months || '-',
                                     '12_months': h.energy_12_months || '-'
                                 },
-                                environmental_summary: { avg_wind_speed: '-', avg_elevation: '-', soil_types: [] },
-                                turbine_details: h.optimal_points.map(p => ({
+                                environmental_summary: {
+                                    avg_wind_speed: h.avg_wind_speed || '-',
+                                    avg_elevation: h.avg_elevation || '-',
+                                    soil_types: []
+                                },
+                                // Мапим детали для таблицы внизу
+                                turbine_details: h.optimal_points.map((p: any) => ({
                                     latitude: p.lat,
                                     longitude: p.lon,
-                                    efficiency: p.efficiency,
-                                    wind_speed: 0,
-                                    energy_predictions: { '1_month': 0, '3_months': 0, '6_months': 0, '12_months': 0, avg_power_kw: 0 },
+                                    efficiency: p.efficiency || 0,
+                                    // Если в JSON точки на бэкенде есть эти поля, они отобразятся:
+                                    wind_speed: p.wind_speed || 0,
+                                    energy_predictions: {
+                                        '1_month': 0,
+                                        '3_months': 0,
+                                        '6_months': 0,
+                                        '12_months': p.energy_12 || p.expected_energy || 0,
+                                        avg_power_kw: 0
+                                    },
                                 })),
                             });
                         }}

@@ -186,29 +186,54 @@ export default function WindMap({
     }
     // Зависимость mapReady гарантирует, что мы выполним код, когда карта реально создана
   }, [initialCoords, mapReady]);
+  // Внутри WindMap.tsx
+  useEffect(() => {
+    // Если координаты стали нулевыми (сброс из родителя)
+    if (initialCoords?.lat_min === 0 && initialCoords?.lat_max === 0) {
+      // Очищаем маркеры выбора
+      markersRef.current.forEach((m) => m.setMap(null));
+      markersRef.current = [];
+
+      // Очищаем полигон
+      if (polygonRef.current) {
+        polygonRef.current.setMap(null);
+        polygonRef.current = null;
+      }
+
+      // Очищаем точки
+      pointsRef.current = [];
+      setPointCount(0);
+
+      // Центрируем карту обратно на Алматы (или твой дефолт)
+      if (mapInstance.current) {
+        mapInstance.current.setCenter({ lat: 43.275, lng: 76.925 });
+        mapInstance.current.setZoom(11);
+      }
+    }
+  }, [initialCoords]);
 
   const handleReset = () => {
-    // Clear selection markers
+    // 1. Очищаем маркеры выбора (те, что ставили кликами)
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
 
-    // Clear polygon
+    // 2. Очищаем полигон
     if (polygonRef.current) {
       polygonRef.current.setMap(null);
       polygonRef.current = null;
     }
 
-    // Clear optimal markers
+    // 3. Очищаем маркеры оптимальных точек (из истории или текущего результата)
     optimalMarkersRef.current.forEach((m) => m.setMap(null));
     optimalMarkersRef.current = [];
 
-    // Reset state
+    // 4. Сбрасываем внутренние счетчики
     pointsRef.current = [];
     setPointCount(0);
 
-    // Notify parent to clear coords and result
+    // 5. ГЛАВНОЕ: Уведомляем родителя, чтобы он очистил координаты и результат истории
     onAreaSelected({ lat_min: 0, lat_max: 0, lon_min: 0, lon_max: 0 });
-    onReset?.();
+    onReset?.(); // Это вызовет handleReset в WindPage
   };
 
   return (
@@ -264,7 +289,7 @@ export default function WindMap({
         </div>
       )}
 
-      {pointCount > 0 && (
+      {(pointCount > 0 || optimalPoints.length > 0) && (
         <button
           onClick={handleReset}
           style={{

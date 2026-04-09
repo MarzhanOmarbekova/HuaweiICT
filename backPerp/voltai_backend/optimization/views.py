@@ -316,9 +316,23 @@ class OptimizationHistoryView(APIView):
             }
             try:
                 res = AIModelResult.objects.get(wind_location=loc)
+                # Собираем все предсказания энергии
+                item['energy_1_month'] = f'{res.energy_1_month:.2f} kWh'
+                item['energy_3_months'] = f'{res.energy_3_months:.2f} kWh'
+                item['energy_6_months'] = f'{res.energy_6_months:.2f} kWh'
                 item['energy_12_months'] = f'{res.energy_12_months:.2f} kWh'
-                item['optimal_points']   = res.optimal_points
+
+                # Собираем данные об окружающей среде
+                item['avg_wind_speed'] = f'{res.avg_wind_speed:.2f} m/s'
+                item['avg_elevation'] = f'{res.avg_elevation:.1f} m'
+
+                # Передаем точки (убедись, что в JSON точек лежат wind_speed и т.д.)
+                item['optimal_points'] = res.optimal_points
+
             except AIModelResult.DoesNotExist:
-                pass
+                item['energy_12_months'] = '-'
+                item['optimal_points'] = []
+
             history.append(item)
+
         return Response({'history': history}, status=status.HTTP_200_OK)
