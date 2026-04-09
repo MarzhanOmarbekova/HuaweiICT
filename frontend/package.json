@@ -9,19 +9,24 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@react-google-maps/api": "^2.16.0",
+    "clsx": "^2.1.0",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.383.0",
     "next": "14.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "recharts": "^2.12.0",
-    "lucide-react": "^0.383.0",
-    "clsx": "^2.1.0"
+    "react-leaflet": "^4.2.1",
+    "recharts": "^2.12.0"
   },
   "devDependencies": {
+    "@types/google.maps": "^3.58.1",
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
-    "typescript": "^5.0.0",
     "eslint": "^8.0.0",
-    "eslint-config-next": "14.2.0"
+    "eslint-config-next": "14.2.0",
+    "typescript": "^5.0.0"
   }
 }
