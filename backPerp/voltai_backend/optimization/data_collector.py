@@ -53,7 +53,7 @@ class EnvironmentalDataCollector:
         lat_max: float,
         lon_min: float,
         lon_max: float,
-        grid_points: int = 8,
+        grid_points: int = 5,
     ) -> List[Dict]:
         """
         Собираем данные по сетке grid_points × grid_points.

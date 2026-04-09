@@ -39,8 +39,10 @@ export default function WindPage({ addToast }: PageProps) {
   const [result, setResult] = useState<OptimizationResult | null>(null);
   const [history, setHistory] = useState<OptimizationHistory[]>([]);
   const [histLoading, setHistLoading] = useState(true);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null)
 
-  const handleReset = () => {
+
+    const handleReset = () => {
     setResult(null);
   };
 
@@ -604,7 +606,30 @@ export default function WindPage({ addToast }: PageProps) {
               </thead>
               <tbody>
                 {history.map((h) => (
-                  <tr key={h.id}>
+                    <tr
+                        key={h.id}
+                        style={{ cursor: 'pointer', transition: 'background 0.1s', background: selectedHistoryId === h.id ? 'var(--accent-dim)' : '' }}
+                        onMouseEnter={e => { if (selectedHistoryId !== h.id) e.currentTarget.style.background = 'var(--bg-surface)' }}
+                        onMouseLeave={e => { if (selectedHistoryId !== h.id) e.currentTarget.style.background = '' }}
+                        onClick={() => {
+                            if (!h.optimal_points?.length) return
+                            setSelectedHistoryId(h.id)
+                            // Создаём фейковый result чтобы показать точки на карте
+                            setResult({
+                                location_id: h.id,
+                                optimal_points: h.optimal_points,
+                                predicted_energy: { '1_month': '-', '3_months': '-', '6_months': '-', '12_months': h.energy_12_months || '-' },
+                                environmental_summary: { avg_wind_speed: '-', avg_elevation: '-', soil_types: [] },
+                                turbine_details: h.optimal_points.map(p => ({
+                                    latitude: p.lat,
+                                    longitude: p.lon,
+                                    efficiency: p.efficiency,
+                                    wind_speed: 0,
+                                    energy_predictions: { '1_month': 0, '3_months': 0, '6_months': 0, '12_months': 0, avg_power_kw: 0 },
+                                })),
+                            })
+                        }}
+                    >
                     <td
                       style={{
                         padding: "11px 14px",
