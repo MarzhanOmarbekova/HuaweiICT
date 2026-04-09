@@ -134,7 +134,7 @@ def prepare_input_data(area_data: List[Dict], grid_size: int = 8) -> np.ndarray:
         if row >= grid_size or col >= grid_size:
             continue
 
-        wind_speed[row, col] = point["wind_speed"]
+        wind_speed[row, col] = np.clip(point["wind_speed"] / 20.0, 0.0, 1.0)
         wind_dir[row, col] = point["wind_direction"] / 360.0
 
     input_array = np.stack(
