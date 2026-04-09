@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react'
 import { api, Balance, User } from '@/lib/api'
 import { Button, Badge, Card, LoadingPage, SectionHeader, Divider } from '@/components/ui'
 import { ToastType } from '@/hooks/useToast'
-
+import { clearAuthData } from '@/lib/api'
+import { useRouter } from "next/navigation";
 interface PageProps {
   addToast?: (type: ToastType, title: string, msg?: string) => void
   user?: User
@@ -14,6 +15,8 @@ interface PageProps {
 export default function ProfilePage({ addToast, user, onLogout }: PageProps) {
   const [balance, setBalance] = useState<Balance | null>(null)
   const [loading, setLoading] = useState(true)
+  const router=useRouter()
+  
 
   useEffect(() => {
     api.get<Balance>('/balance/')
@@ -64,9 +67,27 @@ export default function ProfilePage({ addToast, user, onLogout }: PageProps) {
             ))}
           </div>
 
-          <Button variant="danger" style={{ width: '100%' }} onClick={onLogout}>
-            Sign Out
-          </Button>
+         <Button
+  variant="danger"
+  style={{
+    width: "100%",
+    padding: "12px 0",
+    fontSize: "16px",
+    fontWeight: 600,
+    borderRadius: "8px",
+     fontFamily: 'var(--font-mono)',
+    transition: "all 0.2s ease",
+    cursor: "pointer",
+  }}
+  onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = "#f0f0f0"; // darker white / light gray
+         // slightly darker red text
+      }}
+
+  onClick={()=>{clearAuthData();router.push("/")}}
+>
+  Sign Out
+</Button>
         </Card>
 
         {/* Energy portfolio */}

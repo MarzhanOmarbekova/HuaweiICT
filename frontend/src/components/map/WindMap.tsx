@@ -1,465 +1,286 @@
-'use client'
+"use client";
 
-import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { Button, Card, Spinner } from '@/components/ui'
-import { OptimalPoint } from '@/lib/api'
+import React, { useEffect, useRef, useState, useCallback } from "react";
 
 interface Coordinates {
-  lat_min: number
-  lat_max: number
-  lon_min: number
-  lon_max: number
+  lat_min: number;
+  lat_max: number;
+  lon_min: number;
+  lon_max: number;
 }
 
 interface WindMapProps {
-  onAreaSelected: (coords: Coordinates) => void
-  optimalPoints?: OptimalPoint[]
-  isLoading?: boolean
-  initialCoords?: Coordinates
+  onAreaSelected: (coords: Coordinates) => void;
+  optimalPoints: { lat: number; lng: number }[];
+  isLoading: boolean;
+  initialCoords?: Coordinates;
 }
 
-// Petal Maps Web JS SDK endpoint
-// Get API key from: https://developer.huawei.com > Petal Maps > Web Service
-const PETAL_MAPS_API_KEY = process.env.NEXT_PUBLIC_PETAL_MAPS_KEY || 'YOUR_PETAL_MAPS_KEY'
+const GOOGLE_MAPS_API_KEY = "AIzaSyCQF0pai6dW89n7AON7BqDVQMfcC6pEQYY";
 
-export function WindMap({ onAreaSelected, optimalPoints = [], isLoading = false, initialCoords }: WindMapProps) {
-  const mapContainerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<any>(null)
-  const rectangleRef = useRef<any>(null)
-  const markersRef = useRef<any[]>([])
-  const [mapReady, setMapReady] = useState(false)
-  const [mapError, setMapError] = useState(false)
-  const [selectionMode, setSelectionMode] = useState<'rect' | 'points'>('rect')
-  const [cornerPoints, setCornerPoints] = useState<{ lat: number; lon: number }[]>([])
-  const [coords, setCoords] = useState<Coordinates>(
-    initialCoords || { lat_min: 43.20, lat_max: 43.35, lon_min: 76.85, lon_max: 77.00 }
-  )
-  const [manualInput, setManualInput] = useState(false)
+declare global {
+  interface Window {
+    google: any;
+    __gmaps_loaded__: boolean;
+    __gmaps_callbacks__: (() => void)[];
+    initGoogleMaps: () => void;
+  }
+}
 
-  // Load Petal Maps SDK
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    // Check if already loaded
-    if ((window as any).PetalMaps) {
-      initMap()
-      return
+function loadGoogleMaps(): Promise<void> {
+  return new Promise((resolve) => {
+    if (window.google?.maps) {
+      resolve();
+      return;
     }
-
-    const script = document.createElement('script')
-    script.src = `https://mapkit.map.huawei.com/5.0.0/js/hw-mapkit-ext.min.js?key=${PETAL_MAPS_API_KEY}&callback=onPetalMapsReady`
-    script.async = true
-    script.onerror = () => {
-      console.warn('Petal Maps SDK failed to load - using fallback map')
-      setMapError(true)
+    if (!window.__gmaps_callbacks__) {
+      window.__gmaps_callbacks__ = [];
     }
+    window.__gmaps_callbacks__.push(resolve);
+    if (window.__gmaps_loaded__) return;
+    window.__gmaps_loaded__ = true;
+    window.initGoogleMaps = () => {
+      window.__gmaps_callbacks__.forEach((cb) => cb());
+      window.__gmaps_callbacks__ = [];
+    };
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=geometry&callback=initGoogleMaps`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+  });
+}
 
-    ;(window as any).onPetalMapsReady = () => {
-      setMapReady(true)
-    }
-
-    document.head.appendChild(script)
-    return () => {
-      delete (window as any).onPetalMapsReady
-    }
-  }, [])
+export default function WindMap({
+  onAreaSelected,
+  optimalPoints,
+  isLoading,
+}: WindMapProps) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
+  const optimalMarkersRef = useRef<any[]>([]);
+  const polygonRef = useRef<any>(null);
+  const pointsRef = useRef<{ lat: number; lng: number }[]>([]);
+  const [mapReady, setMapReady] = useState(false);
+  const [pointCount, setPointCount] = useState(0);
 
   const initMap = useCallback(() => {
-    if (!mapContainerRef.current || !(window as any).HWMapJsSDK) return
+    if (!mapRef.current || mapInstance.current) return;
 
-    try {
-      const HWMapJsSDK = (window as any).HWMapJsSDK
-      mapRef.current = new HWMapJsSDK.HWMap(mapContainerRef.current, {
-        center: {
-          lat: (coords.lat_min + coords.lat_max) / 2,
-          lng: (coords.lon_min + coords.lon_max) / 2,
-        },
-        zoom: 11,
-        language: 'en',
-      })
+    const map = new window.google.maps.Map(mapRef.current, {
+      center: { lat: 43.275, lng: 76.925 },
+      zoom: 11,
+    });
 
-      mapRef.current.on('click', handleMapClick)
-      drawInitialRect()
-    } catch (e) {
-      console.error('Map init error:', e)
-      setMapError(true)
-    }
-  }, [coords])
+    mapInstance.current = map;
+    setMapReady(true);
 
-  useEffect(() => {
-    if (mapReady) initMap()
-  }, [mapReady, initMap])
+    map.addListener("click", (e: any) => {
+      if (!e.latLng) return;
+      if (pointsRef.current.length >= 4) return;
 
-  const handleMapClick = (e: any) => {
-    if (selectionMode !== 'points') return
-    const lat = e.latlng?.lat
-    const lng = e.latlng?.lng
-    if (!lat || !lng) return
+      const newPoint = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+      pointsRef.current = [...pointsRef.current, newPoint];
+      setPointCount(pointsRef.current.length);
 
-    setCornerPoints(prev => {
-      const next = [...prev, { lat, lon: lng }]
-      if (next.length === 4) {
-        const lats = next.map(p => p.lat)
-        const lons = next.map(p => p.lon)
-        const newCoords = {
+      const marker = new window.google.maps.Marker({
+        position: newPoint,
+        map,
+        label: String(pointsRef.current.length),
+      });
+      markersRef.current.push(marker);
+
+      if (pointsRef.current.length === 4) {
+        if (polygonRef.current) polygonRef.current.setMap(null);
+        polygonRef.current = new window.google.maps.Polygon({
+          paths: pointsRef.current,
+          strokeColor: "#00BFA5",
+          strokeWeight: 3,
+          fillColor: "#00BFA5",
+          fillOpacity: 0.3,
+          map,
+        });
+
+        const lats = pointsRef.current.map((p) => p.lat);
+        const lngs = pointsRef.current.map((p) => p.lng);
+        onAreaSelected({
           lat_min: Math.min(...lats),
           lat_max: Math.max(...lats),
-          lon_min: Math.min(...lons),
-          lon_max: Math.max(...lons),
-        }
-        setCoords(newCoords)
-        onAreaSelected(newCoords)
-        return []
+          lon_min: Math.min(...lngs),
+          lon_max: Math.max(...lngs),
+        });
       }
-      return next
-    })
-  }
+    });
+  }, [onAreaSelected]);
 
-  const drawInitialRect = () => {
-    if (!mapRef.current || !(window as any).HWMapJsSDK) return
-    const HWMapJsSDK = (window as any).HWMapJsSDK
+  useEffect(() => {
+    loadGoogleMaps().then(() => initMap());
+  }, [initMap]);
 
-    if (rectangleRef.current) {
-      rectangleRef.current.setMap(null)
+  // Always clear previous optimal markers before rendering new ones
+  useEffect(() => {
+    if (!mapInstance.current) return;
+
+    optimalMarkersRef.current.forEach((m) => m.setMap(null));
+    optimalMarkersRef.current = [];
+
+    if (!optimalPoints?.length) return;
+
+    optimalPoints.forEach((pt) => {
+      const marker = new window.google.maps.Marker({
+        position: pt,
+        map: mapInstance.current,
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: "#FF5722",
+          fillOpacity: 1,
+          strokeColor: "#fff",
+          strokeWeight: 2,
+        },
+      });
+      optimalMarkersRef.current.push(marker);
+    });
+  }, [optimalPoints]);
+
+  const handleReset = () => {
+    markersRef.current.forEach((m) => m.setMap(null));
+    markersRef.current = [];
+
+    if (polygonRef.current) {
+      polygonRef.current.setMap(null);
+      polygonRef.current = null;
     }
 
-    rectangleRef.current = new HWMapJsSDK.Rectangle({
-      bounds: {
-        sw: { lat: coords.lat_min, lng: coords.lon_min },
-        ne: { lat: coords.lat_max, lng: coords.lon_max },
-      },
-      strokeColor: '#00d68f',
-      strokeWeight: 2,
-      fillColor: 'rgba(0,214,143,0.1)',
-    })
-    rectangleRef.current.setMap(mapRef.current)
-  }
+    optimalMarkersRef.current.forEach((m) => m.setMap(null));
+    optimalMarkersRef.current = [];
 
-  // Draw optimal turbine points on map
-  useEffect(() => {
-    if (!mapRef.current || !(window as any).HWMapJsSDK) return
-    const HWMapJsSDK = (window as any).HWMapJsSDK
-
-    markersRef.current.forEach(m => m.setMap(null))
-    markersRef.current = []
-
-    optimalPoints.forEach((pt, i) => {
-      const marker = new HWMapJsSDK.Marker({
-        position: { lat: pt.lat, lng: pt.lon },
-        label: {
-          content: `T${i + 1}`,
-          color: '#00d68f',
-        },
-      })
-      marker.setMap(mapRef.current)
-      markersRef.current.push(marker)
-    })
-  }, [optimalPoints])
-
-  const handleManualApply = () => {
-    onAreaSelected(coords)
-  }
-
-  // ---- FALLBACK MAP (CSS grid visualization when SDK unavailable) ----
-  if (mapError || PETAL_MAPS_API_KEY === 'YOUR_PETAL_MAPS_KEY') {
-    return <FallbackMap coords={coords} setCoords={setCoords} onAreaSelected={onAreaSelected} optimalPoints={optimalPoints} isLoading={isLoading} />
-  }
+    pointsRef.current = [];
+    setPointCount(0);
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      {/* Controls */}
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <Button
-          variant={selectionMode === 'rect' ? 'primary' : 'ghost'}
-          size="sm"
-          onClick={() => { setSelectionMode('rect'); setManualInput(true) }}
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "500px",
+        borderRadius: "12px",
+        overflow: "hidden",
+      }}
+    >
+      {!mapReady && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "#f5f5f5",
+            zIndex: 10,
+          }}
         >
-          Manual coords
-        </Button>
-        <Button
-          variant={selectionMode === 'points' ? 'primary' : 'ghost'}
-          size="sm"
-          onClick={() => { setSelectionMode('points'); setManualInput(false) }}
+          Loading map…
+        </div>
+      )}
+
+      <div ref={mapRef} style={{ width: "100%", height: "100%" }} />
+
+      {mapReady && (
+        <div
+          style={{
+            position: "absolute",
+            top: 12,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(0,0,0,0.65)",
+            backdropFilter: "blur(6px)",
+            color: "#fff",
+            padding: "6px 16px",
+            borderRadius: "20px",
+            fontSize: "13px",
+            fontWeight: 500,
+            pointerEvents: "none",
+            whiteSpace: "nowrap",
+            letterSpacing: "0.01em",
+          }}
         >
-          Click 4 corners on map
-        </Button>
-        {selectionMode === 'points' && cornerPoints.length > 0 && (
-          <span style={{ fontSize: '12px', color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
-            {4 - cornerPoints.length} more click{cornerPoints.length < 3 ? 's' : ''} needed
-          </span>
-        )}
-      </div>
+          {pointCount < 4
+            ? `Click to place point ${pointCount + 1} of 4`
+            : "✓ Area selected — reset to pick again"}
+        </div>
+      )}
 
-      {/* Map */}
-      <div style={{ position: 'relative', borderRadius: 'var(--radius-lg)', overflow: 'hidden', border: '1px solid var(--border)' }}>
-        <div ref={mapContainerRef} style={{ width: '100%', height: '400px' }} />
-        {isLoading && (
-          <div style={{
-            position: 'absolute', inset: 0,
-            background: 'rgba(7,11,18,0.7)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexDirection: 'column', gap: '12px',
-          }}>
-            <Spinner size={32} />
-            <p style={{ color: 'var(--accent)', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>Running CNN optimization...</p>
-          </div>
-        )}
-      </div>
+      {pointCount > 0 && (
+        <button
+          onClick={handleReset}
+          style={{
+            position: "absolute",
+            bottom: 20,
+            left: "50%",
+            transform: "translateX(-50%)",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            background: "#fff",
+            color: "#d32f2f",
+            border: "1.5px solid #ffcdd2",
+            borderRadius: "10px",
+            padding: "8px 20px",
+            cursor: "pointer",
+            fontSize: "13px",
+            fontWeight: 600,
+            letterSpacing: "0.02em",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            transition: "all 0.15s ease",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "#ffebee";
+            (e.currentTarget as HTMLButtonElement).style.borderColor =
+              "#ef9a9a";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "#fff";
+            (e.currentTarget as HTMLButtonElement).style.borderColor =
+              "#ffcdd2";
+          }}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="1 4 1 10 7 10" />
+            <path d="M3.51 15a9 9 0 1 0 .49-3.95" />
+          </svg>
+          Reset selection
+        </button>
+      )}
 
-      {/* Manual input */}
-      {manualInput && (
-        <ManualCoordsInput coords={coords} setCoords={setCoords} onApply={handleManualApply} />
+      {isLoading && (
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            background: "rgba(0,0,0,0.75)",
+            color: "#fff",
+            padding: "12px 20px",
+            borderRadius: "8px",
+            fontSize: "14px",
+          }}
+        >
+          Optimizing…
+        </div>
       )}
     </div>
-  )
-}
-
-// ---- Fallback interactive map (no Petal Maps SDK) ----
-function FallbackMap({
-  coords, setCoords, onAreaSelected, optimalPoints, isLoading
-}: {
-  coords: Coordinates
-  setCoords: (c: Coordinates) => void
-  onAreaSelected: (c: Coordinates) => void
-  optimalPoints: OptimalPoint[]
-  isLoading: boolean
-}) {
-  const GRID = 16
-  const [dragging, setDragging] = useState<{ startRow: number; startCol: number } | null>(null)
-  const [selection, setSelection] = useState<{ r1: number; c1: number; r2: number; c2: number } | null>(null)
-
-  const cellToLatLon = (row: number, col: number) => {
-    // Map from a wider area centered around Almaty
-    const LAT_CENTER = 43.25
-    const LON_CENTER = 76.92
-    const SPAN = 0.6
-    const lat = LAT_CENTER + SPAN * 0.5 - (row / GRID) * SPAN
-    const lon = LON_CENTER - SPAN * 0.5 + (col / GRID) * SPAN
-    return { lat, lon }
-  }
-
-  const handleMouseDown = (row: number, col: number) => {
-    setDragging({ startRow: row, startCol: col })
-    setSelection({ r1: row, c1: col, r2: row, c2: col })
-  }
-
-  const handleMouseEnter = (row: number, col: number) => {
-    if (!dragging) return
-    setSelection({
-      r1: Math.min(dragging.startRow, row),
-      c1: Math.min(dragging.startCol, col),
-      r2: Math.max(dragging.startRow, row),
-      c2: Math.max(dragging.startCol, col),
-    })
-  }
-
-  const handleMouseUp = () => {
-    if (selection) {
-      const sw = cellToLatLon(selection.r2, selection.c1)
-      const ne = cellToLatLon(selection.r1, selection.c2)
-      const newCoords = {
-        lat_min: parseFloat(sw.lat.toFixed(4)),
-        lat_max: parseFloat(ne.lat.toFixed(4)),
-        lon_min: parseFloat(sw.lon.toFixed(4)),
-        lon_max: parseFloat(ne.lon.toFixed(4)),
-      }
-      setCoords(newCoords)
-      onAreaSelected(newCoords)
-    }
-    setDragging(null)
-  }
-
-  const isInSelection = (row: number, col: number) => {
-    if (!selection) return false
-    return row >= selection.r1 && row <= selection.r2 && col >= selection.c1 && col <= selection.c2
-  }
-
-  const isTurbineCell = (row: number, col: number) => {
-    return optimalPoints.some(pt => {
-      const cell = latLonToCell(pt.lat, pt.lon)
-      return cell.row === row && cell.col === col
-    })
-  }
-
-  const latLonToCell = (lat: number, lon: number) => {
-    const LAT_CENTER = 43.25; const LON_CENTER = 76.92; const SPAN = 0.6
-    const row = Math.round(((LAT_CENTER + SPAN * 0.5 - lat) / SPAN) * GRID)
-    const col = Math.round(((lon - (LON_CENTER - SPAN * 0.5)) / SPAN) * GRID)
-    return { row: Math.max(0, Math.min(GRID - 1, row)), col: Math.max(0, Math.min(GRID - 1, col)) }
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <div style={{
-        background: 'var(--bg-card)',
-        border: '1px solid var(--accent-dim)',
-        borderRadius: '8px',
-        padding: '10px 14px',
-        fontSize: '12px',
-        color: 'var(--text-secondary)',
-      }}>
-        <strong style={{ color: 'var(--accent)' }}>Map Mode:</strong> Drag to select area for turbine placement.
-        Configure your Huawei Petal Maps API key in <code style={{ color: 'var(--amber)', fontFamily: 'var(--font-mono)' }}>.env.local</code> for the full interactive map.
-      </div>
-
-      {/* Grid map */}
-      <div
-        style={{
-          position: 'relative',
-          background: '#0a1520',
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--border)',
-          padding: '8px',
-          userSelect: 'none',
-        }}
-        onMouseLeave={() => { setDragging(null) }}
-        onMouseUp={handleMouseUp}
-      >
-        {/* Axis labels */}
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px', paddingLeft: '32px' }}>
-          {Array.from({ length: GRID }).map((_, c) => {
-            const { lon } = cellToLatLon(0, c)
-            return c % 4 === 0 ? (
-              <div key={c} style={{ flex: 1, fontSize: '8px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textAlign: 'center' }}>
-                {lon.toFixed(2)}
-              </div>
-            ) : <div key={c} style={{ flex: 1 }} />
-          })}
-        </div>
-
-        <div style={{ display: 'flex' }}>
-          {/* Y axis */}
-          <div style={{ width: '28px', display: 'flex', flexDirection: 'column' }}>
-            {Array.from({ length: GRID }).map((_, r) => {
-              const { lat } = cellToLatLon(r, 0)
-              return r % 4 === 0 ? (
-                <div key={r} style={{ flex: 1, display: 'flex', alignItems: 'center', fontSize: '8px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', justifyContent: 'flex-end', paddingRight: '4px' }}>
-                  {lat.toFixed(2)}
-                </div>
-              ) : <div key={r} style={{ flex: 1 }} />
-            })}
-          </div>
-
-          {/* Grid cells */}
-          <div style={{
-            flex: 1,
-            display: 'grid',
-            gridTemplateColumns: `repeat(${GRID}, 1fr)`,
-            gap: '2px',
-          }}>
-            {Array.from({ length: GRID * GRID }).map((_, idx) => {
-              const row = Math.floor(idx / GRID)
-              const col = idx % GRID
-              const inSel = isInSelection(row, col)
-              const turbine = isTurbineCell(row, col)
-              const turbineData = turbine ? optimalPoints.find(pt => {
-                const cell = latLonToCell(pt.lat, pt.lon)
-                return cell.row === row && cell.col === col
-              }) : null
-
-              // Terrain color simulation
-              const hue = 150 + (row * 3 + col * 2) % 30
-              const lightness = 8 + (row + col) % 8
-
-              return (
-                <div
-                  key={idx}
-                  onMouseDown={() => handleMouseDown(row, col)}
-                  onMouseEnter={() => handleMouseEnter(row, col)}
-                  style={{
-                    aspectRatio: '1',
-                    borderRadius: '2px',
-                    background: turbine
-                      ? 'rgba(0,214,143,0.3)'
-                      : inSel
-                        ? 'rgba(0,214,143,0.15)'
-                        : `hsl(${hue},30%,${lightness}%)`,
-                    border: turbine
-                      ? '1px solid var(--accent)'
-                      : inSel
-                        ? '1px solid rgba(0,214,143,0.4)'
-                        : '1px solid transparent',
-                    cursor: 'crosshair',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '9px',
-                    transition: 'background 0.1s',
-                    position: 'relative',
-                  }}
-                >
-                  {turbine && (
-                    <span title={`Efficiency: ${((turbineData?.efficiency || 0) * 100).toFixed(1)}%`} style={{ color: 'var(--accent)', fontSize: '10px', lineHeight: 1 }}>
-                      *
-                    </span>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {isLoading && (
-          <div style={{
-            position: 'absolute', inset: 0, borderRadius: 'var(--radius-lg)',
-            background: 'rgba(7,11,18,0.75)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '12px',
-          }}>
-            <Spinner size={32} />
-            <p style={{ color: 'var(--accent)', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>CNN model running...</p>
-          </div>
-        )}
-      </div>
-
-      <ManualCoordsInput coords={coords} setCoords={setCoords} onApply={() => onAreaSelected(coords)} />
-    </div>
-  )
-}
-
-function ManualCoordsInput({ coords, setCoords, onApply }: {
-  coords: Coordinates
-  setCoords: (c: Coordinates) => void
-  onApply: () => void
-}) {
-  const fields: { key: keyof Coordinates; label: string }[] = [
-    { key: 'lat_min', label: 'Lat Min' },
-    { key: 'lat_max', label: 'Lat Max' },
-    { key: 'lon_min', label: 'Lon Min' },
-    { key: 'lon_max', label: 'Lon Max' },
-  ]
-
-  return (
-    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px' }}>
-      <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '12px' }}>
-        Area Coordinates
-      </p>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
-        {fields.map(f => (
-          <div key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <label style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{f.label}</label>
-            <input
-              type="number"
-              step="0.001"
-              value={coords[f.key]}
-              onChange={e => setCoords({ ...coords, [f.key]: parseFloat(e.target.value) || 0 })}
-              style={{
-                background: 'var(--bg-input)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '7px 10px',
-                color: 'var(--text-primary)',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '13px',
-                outline: 'none',
-                width: '100%',
-              }}
-            />
-          </div>
-        ))}
-      </div>
-      <Button variant="primary" size="sm" onClick={onApply} style={{ width: '100%' }}>
-        Apply Coordinates
-      </Button>
-    </div>
-  )
+  );
 }
