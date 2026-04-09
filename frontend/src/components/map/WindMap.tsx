@@ -11,6 +11,7 @@ interface Coordinates {
 
 interface WindMapProps {
   onAreaSelected: (coords: Coordinates) => void;
+  onReset?: () => void;
   optimalPoints: { lat: number; lng: number }[];
   isLoading: boolean;
   initialCoords?: Coordinates;
@@ -53,6 +54,7 @@ function loadGoogleMaps(): Promise<void> {
 
 export default function WindMap({
   onAreaSelected,
+  onReset,
   optimalPoints,
   isLoading,
 }: WindMapProps) {
@@ -93,8 +95,20 @@ export default function WindMap({
 
       if (pointsRef.current.length === 4) {
         if (polygonRef.current) polygonRef.current.setMap(null);
+
+        const pts = pointsRef.current;
+        const center = {
+          lat: pts.reduce((s, p) => s + p.lat, 0) / 4,
+          lng: pts.reduce((s, p) => s + p.lng, 0) / 4,
+        };
+        const sorted = [...pts].sort((a, b) => {
+          const angleA = Math.atan2(a.lat - center.lat, a.lng - center.lng);
+          const angleB = Math.atan2(b.lat - center.lat, b.lng - center.lng);
+          return angleA - angleB;
+        });
+
         polygonRef.current = new window.google.maps.Polygon({
-          paths: pointsRef.current,
+          paths: sorted,
           strokeColor: "#00BFA5",
           strokeWeight: 3,
           fillColor: "#00BFA5",
@@ -102,8 +116,8 @@ export default function WindMap({
           map,
         });
 
-        const lats = pointsRef.current.map((p) => p.lat);
-        const lngs = pointsRef.current.map((p) => p.lng);
+        const lats = pts.map((p) => p.lat);
+        const lngs = pts.map((p) => p.lng);
         onAreaSelected({
           lat_min: Math.min(...lats),
           lat_max: Math.max(...lats),
@@ -145,19 +159,27 @@ export default function WindMap({
   }, [optimalPoints]);
 
   const handleReset = () => {
+    // Clear selection markers
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
 
+    // Clear polygon
     if (polygonRef.current) {
       polygonRef.current.setMap(null);
       polygonRef.current = null;
     }
 
+    // Clear optimal markers
     optimalMarkersRef.current.forEach((m) => m.setMap(null));
     optimalMarkersRef.current = [];
 
+    // Reset state
     pointsRef.current = [];
     setPointCount(0);
+
+    // Notify parent to clear coords and result
+    onAreaSelected({ lat_min: 0, lat_max: 0, lon_min: 0, lon_max: 0 });
+    onReset?.();
   };
 
   return (

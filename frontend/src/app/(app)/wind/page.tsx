@@ -40,6 +40,10 @@ export default function WindPage({ addToast }: PageProps) {
   const [history, setHistory] = useState<OptimizationHistory[]>([]);
   const [histLoading, setHistLoading] = useState(true);
 
+  const handleReset = () => {
+    setResult(null);
+  };
+
   useEffect(() => {
     api
       .get<{ history: OptimizationHistory[] }>("/optimization-history/")
@@ -132,6 +136,7 @@ export default function WindPage({ addToast }: PageProps) {
           </p>
           <WindMap
             onAreaSelected={setCoords}
+            onReset={handleReset} // ← pass it down
             optimalPoints={
               result?.optimal_points.map((p) => ({ lat: p.lat, lng: p.lon })) ||
               []
