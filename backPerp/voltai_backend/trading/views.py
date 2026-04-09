@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
+from blockchain.bcs_client import invoke_bcs, is_bcs_enabled
 
 # Add blockchain module to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -419,6 +420,16 @@ class BuyEnergyView(APIView):
             # Blockchain
             blockchain = get_blockchain()
             block_info = mine_and_persist(blockchain, tx_payload)
+
+            bcs_result = invoke_bcs('recordTrade', [
+                tx_payload['transaction_id'],
+                str(energy_amount),
+                str(contract.total_price),
+                str(offer.seller_id),
+                str(request.user.id),
+            ])
+            if bcs_result:
+                logger.info(f'[BCS] Trade anchored: {bcs_result}')
 
             # DB Transaction record
             tx_record = Transaction.objects.create(
