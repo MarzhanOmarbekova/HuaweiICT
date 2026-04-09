@@ -612,13 +612,33 @@ export default function WindPage({ addToast }: PageProps) {
                         onMouseEnter={e => { if (selectedHistoryId !== h.id) e.currentTarget.style.background = 'var(--bg-surface)' }}
                         onMouseLeave={e => { if (selectedHistoryId !== h.id) e.currentTarget.style.background = '' }}
                         onClick={() => {
-                            if (!h.optimal_points?.length) return
-                            setSelectedHistoryId(h.id)
-                            // Создаём фейковый result чтобы показать точки на карте
+                            if (!h.optimal_points?.length) return;
+                            setSelectedHistoryId(h.id);
+
+                            // 1. Вычисляем крайние точки (bounding box) для зума
+                            const lats = h.optimal_points.map(p => p.lat);
+                            const lons = h.optimal_points.map(p => p.lon);
+
+                            // Добавляем небольшой отступ (padding), чтобы точки не прилипали к краям экрана
+                            const padding = 0.02;
+
+                            setCoords({
+                                lat_min: Math.min(...lats) - padding,
+                                lat_max: Math.max(...lats) + padding,
+                                lon_min: Math.min(...lons) - padding,
+                                lon_max: Math.max(...lons) + padding,
+                            });
+
+                            // 2. Создаём фейковый result чтобы показать точки на карте (твой оригинальный код)
                             setResult({
                                 location_id: h.id,
                                 optimal_points: h.optimal_points,
-                                predicted_energy: { '1_month': '-', '3_months': '-', '6_months': '-', '12_months': h.energy_12_months || '-' },
+                                predicted_energy: {
+                                    '1_month': '-',
+                                    '3_months': '-',
+                                    '6_months': '-',
+                                    '12_months': h.energy_12_months || '-'
+                                },
                                 environmental_summary: { avg_wind_speed: '-', avg_elevation: '-', soil_types: [] },
                                 turbine_details: h.optimal_points.map(p => ({
                                     latitude: p.lat,
@@ -627,7 +647,7 @@ export default function WindPage({ addToast }: PageProps) {
                                     wind_speed: 0,
                                     energy_predictions: { '1_month': 0, '3_months': 0, '6_months': 0, '12_months': 0, avg_power_kw: 0 },
                                 })),
-                            })
+                            });
                         }}
                     >
                     <td

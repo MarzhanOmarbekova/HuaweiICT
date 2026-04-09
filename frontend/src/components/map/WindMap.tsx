@@ -57,6 +57,7 @@ export default function WindMap({
   onReset,
   optimalPoints,
   isLoading,
+  initialCoords,
 }: WindMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
@@ -157,6 +158,34 @@ export default function WindMap({
       optimalMarkersRef.current.push(marker);
     });
   }, [optimalPoints]);
+  useEffect(() => {
+    // 1. Проверяем наличие инстанса внутри .current
+    if (!mapInstance.current || !initialCoords) return;
+
+    // 2. Пропускаем нулевые координаты
+    if (initialCoords.lat_min === 0 && initialCoords.lat_max === 0) return;
+
+    try {
+      // 3. Создаем объект Bounds для Google Maps
+      const bounds = new window.google.maps.LatLngBounds();
+
+      bounds.extend({ lat: initialCoords.lat_min, lng: initialCoords.lon_min });
+      bounds.extend({ lat: initialCoords.lat_max, lng: initialCoords.lon_max });
+
+      // 4. Вызываем fitBounds у инстанса
+      mapInstance.current.fitBounds(bounds);
+
+      // Дополнительно: если точек мало, Google Maps может слишком сильно приблизить.
+      // Можно ограничить максимальный зум после фита (опционально)
+      const listener = window.google.maps.event.addListenerOnce(mapInstance.current, 'bounds_changed', () => {
+        if (mapInstance.current.getZoom() > 15) mapInstance.current.setZoom(15);
+      });
+
+    } catch (e) {
+      console.error("Ошибка при зуме карты:", e);
+    }
+    // Зависимость mapReady гарантирует, что мы выполним код, когда карта реально создана
+  }, [initialCoords, mapReady]);
 
   const handleReset = () => {
     // Clear selection markers
