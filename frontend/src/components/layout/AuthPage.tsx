@@ -1,12 +1,44 @@
 "use client";
 
 import React, { useState } from "react";
+import { motion } from "framer-motion";
 import { api, setAuthData, User } from "@/lib/api";
 import { Button, Input } from "@/components/ui";
 import { extractError } from "@/hooks/useToast";
 
 interface AuthPageProps {
   onLogin: (user: User) => void;
+}
+
+const FLOATING_WINDS = Array.from({ length: 15 }, (_, i) => ({
+  id: i,
+  left: `${Math.random() * 100}%`,
+  top: `${Math.random() * 100}%`,
+  size: 20 + Math.random() * 28,
+  duration: 4 + Math.random() * 4,
+  delay: Math.random() * 5,
+  yRange: -(20 + Math.random() * 40),
+  opacity: 0.15 + Math.random() * 0.25,
+}));
+
+// Wind icon as raw SVG — 3 green lines, no background box
+function WindIcon({ size, color }: { size: number; color: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2" />
+      <path d="M9.6 4.6A2 2 0 1 1 11 8H2" />
+      <path d="M12.6 19.4A2 2 0 1 0 14 16H2" />
+    </svg>
+  );
 }
 
 export function AuthPage({ onLogin }: AuthPageProps) {
@@ -53,22 +85,61 @@ export function AuthPage({ onLogin }: AuthPageProps) {
         overflow: "hidden",
       }}
     >
-      {/* Background decoration */}
+      {/* Floating wind icons — just the 3 green lines */}
       <div
         style={{
           position: "absolute",
-          width: "600px",
-          height: "600px",
+          inset: 0,
+          overflow: "hidden",
+          pointerEvents: "none",
+        }}
+      >
+        {FLOATING_WINDS.map((p) => (
+          <motion.div
+            key={p.id}
+            style={{
+              position: "absolute",
+              left: p.left,
+              top: p.top,
+              opacity: p.opacity,
+            }}
+            animate={{
+              y: [0, p.yRange, 0],
+              opacity: [p.opacity, p.opacity + 0.2, p.opacity],
+              x: [0, 8, 0],
+            }}
+            transition={{
+              duration: p.duration,
+              repeat: Infinity,
+              delay: p.delay,
+              ease: "easeInOut",
+            }}
+          >
+            <WindIcon size={p.size} color="#10b981" />
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Radial glow */}
+      <div
+        style={{
+          position: "absolute",
+          width: "700px",
+          height: "700px",
           background:
-            "radial-gradient(circle, rgba(0,214,143,0.06) 0%, transparent 70%)",
-          top: "-100px",
+            "radial-gradient(circle, rgba(16,185,129,0.08) 0%, transparent 70%)",
+          top: "-150px",
           left: "50%",
           transform: "translateX(-50%)",
           pointerEvents: "none",
         }}
       />
 
-      <div
+      {/* Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
         style={{
           background: "var(--bg-surface)",
           border: "1px solid var(--border-strong)",
@@ -76,13 +147,15 @@ export function AuthPage({ onLogin }: AuthPageProps) {
           padding: "44px",
           width: "420px",
           boxShadow: "var(--shadow-lg)",
-          animation: "fadeIn 0.3s ease",
           position: "relative",
+          zIndex: 10,
         }}
       >
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: "36px" }}>
-          <div
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            transition={{ type: "spring", stiffness: 300 }}
             style={{
               width: "52px",
               height: "52px",
@@ -91,21 +164,17 @@ export function AuthPage({ onLogin }: AuthPageProps) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontFamily: "var(--font-display)",
-              fontWeight: 800,
-              fontSize: "26px",
-              color: "var(--accent-text)",
               margin: "0 auto 12px",
+              cursor: "default",
             }}
           >
-            V
-          </div>
+            <WindIcon size={26} color="white" />
+          </motion.div>
           <h1
             style={{
-              fontFamily: "var(--font-display)",
-              fontWeight: 800,
-              fontSize: "24px",
-              letterSpacing: "-0.02em",
+              fontSize: "30px",
+              fontFamily: "monospace",
+              marginBottom: "0.5rem",
             }}
           >
             VoltAI
@@ -160,7 +229,13 @@ export function AuthPage({ onLogin }: AuthPageProps) {
         </div>
 
         {/* Form */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, x: tab === "login" ? -10 : 10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.2 }}
+          style={{ display: "flex", flexDirection: "column", gap: "14px" }}
+        >
           {tab === "register" && (
             <Input
               label="Username"
@@ -193,7 +268,9 @@ export function AuthPage({ onLogin }: AuthPageProps) {
           />
 
           {error && (
-            <div
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
               style={{
                 background: "var(--red-dim)",
                 border: "1px solid var(--red)",
@@ -204,7 +281,7 @@ export function AuthPage({ onLogin }: AuthPageProps) {
               }}
             >
               {error}
-            </div>
+            </motion.div>
           )}
 
           <Button
@@ -227,8 +304,8 @@ export function AuthPage({ onLogin }: AuthPageProps) {
           >
             {tab === "login" ? "Sign In" : "Create Account"}
           </Button>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </div>
   );
 }
