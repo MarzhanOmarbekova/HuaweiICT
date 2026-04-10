@@ -245,19 +245,18 @@ export default function WindMap({
   // ── Сброс при обнулении координат ───────────────────────────
   useEffect(() => {
     if (initialCoords?.lat_min === 0 && initialCoords?.lat_max === 0) {
+      // Чистим ручные маркеры
       markersRef.current.forEach((m) => m.setMap(null));
       markersRef.current = [];
 
-      if (polygonRef.current) { polygonRef.current.setMap(null); polygonRef.current = null; }
-      if (historyPolygonRef.current) { historyPolygonRef.current.setMap(null); historyPolygonRef.current = null; }
+      // Чистим зеленый полигон выбора
+      if (polygonRef.current) {
+        polygonRef.current.setMap(null);
+        polygonRef.current = null;
+      }
 
       pointsRef.current = [];
       setPointCount(0);
-
-      if (mapInstance.current) {
-        mapInstance.current.setCenter({ lat: 43.275, lng: 76.925 });
-        mapInstance.current.setZoom(11);
-      }
     }
   }, [initialCoords]);
 

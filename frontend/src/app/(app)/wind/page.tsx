@@ -495,51 +495,61 @@ export default function WindPage({ addToast }: PageProps) {
                                         if (!h.optimal_points?.length) return;
 
                                         setSelectedHistoryId(h.id);
-                                        // Блокируем карту — режим просмотра истории
                                         setMapLocked(true);
 
-                                        // Восстанавливаем boundary_points из истории
-                                        const bp = (h as any).boundary_points || [];
-                                        setHistoryBoundaryPoints(bp);
+                                        /** * STEP 1: Reset current selection state.
+                                         * Setting coordinates to 0 triggers the cleanup useEffect in WindMap,
+                                         * removing manual markers and polygons.
+                                         */
+                                        setCoords({ lat_min: 0, lat_max: 0, lon_min: 0, lon_max: 0 });
+                                        setBoundaryPoints([]);
 
-                                        // Используем bounding box из истории для fitBounds
-                                        const hAny = h as any;
-                                        setCoords({
-                                            lat_min: hAny.lat_min || 0,
-                                            lat_max: hAny.lat_max || 0,
-                                            lon_min: hAny.lon_min || 0,
-                                            lon_max: hAny.lon_max || 0,
-                                        });
+                                        /** * STEP 2: Load historical data after a short delay.
+                                         * The delay ensures the map has finished cleaning up the previous state
+                                         * before we inject the new historical points and polygons.
+                                         */
+                                        setTimeout(() => {
+                                            const hAny = h as any;
+                                            const bp = hAny.boundary_points || [];
 
-                                        // Заполняем результат
-                                        setResult({
-                                            location_id: h.id,
-                                            optimal_points: h.optimal_points,
-                                            predicted_energy: {
-                                                "1_month":  h.energy_1_month  || "-",
-                                                "3_months": h.energy_3_months || "-",
-                                                "6_months": h.energy_6_months || "-",
-                                                "12_months":h.energy_12_months|| "-",
-                                            },
-                                            environmental_summary: {
-                                                avg_wind_speed: h.avg_wind_speed || "-",
-                                                avg_elevation:  h.avg_elevation  || "-",
-                                                soil_types: [],
-                                            },
-                                            turbine_details: h.optimal_points.map((p: any) => ({
-                                                latitude:   p.lat,
-                                                longitude:  p.lon,
-                                                efficiency: p.efficiency || 0,
-                                                wind_speed: p.wind_speed || 0,
-                                                energy_predictions: {
-                                                    "1_month":  0,
-                                                    "3_months": 0,
-                                                    "6_months": 0,
-                                                    "12_months":p.energy_12 || 0,
-                                                    avg_power_kw: 0,
+                                            setHistoryBoundaryPoints(bp);
+
+                                            setCoords({
+                                                lat_min: hAny.lat_min || 0,
+                                                lat_max: hAny.lat_max || 0,
+                                                lon_min: hAny.lon_min || 0,
+                                                lon_max: hAny.lon_max || 0,
+                                            });
+
+                                            setResult({
+                                                location_id: h.id,
+                                                optimal_points: h.optimal_points,
+                                                predicted_energy: {
+                                                    "1_month":  h.energy_1_month  || "-",
+                                                    "3_months": h.energy_3_months || "-",
+                                                    "6_months": h.energy_6_months || "-",
+                                                    "12_months": h.energy_12_months || "-",
                                                 },
-                                            })),
-                                        });
+                                                environmental_summary: {
+                                                    avg_wind_speed: h.avg_wind_speed || "-",
+                                                    avg_elevation:  hAny.avg_elevation  || "-",
+                                                    soil_types: [],
+                                                },
+                                                turbine_details: h.optimal_points.map((p: any) => ({
+                                                    latitude:   p.lat,
+                                                    longitude:  p.lon,
+                                                    efficiency: p.efficiency || 0,
+                                                    wind_speed: p.wind_speed || 0,
+                                                    energy_predictions: {
+                                                        "1_month":  0,
+                                                        "3_months": 0,
+                                                        "6_months": 0,
+                                                        "12_months": p.energy_12 || 0,
+                                                        avg_power_kw: 0,
+                                                    },
+                                                })),
+                                            });
+                                        }, 50); // Closing the setTimeout correctly
                                     }}
                                 >
                                     <td style={{ padding: "11px 14px", borderBottom: "1px solid var(--border)", fontSize: "12px", color: "var(--text-secondary)" }}>
