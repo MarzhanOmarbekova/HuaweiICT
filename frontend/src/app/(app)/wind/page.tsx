@@ -244,10 +244,12 @@ export default function WindPage({ addToast }: PageProps) {
                             loading={running}
                             disabled={mapLocked || (coords.lat_min === 0 && coords.lat_max === 0)}
                             onClick={runOptimization}
-                            style={{
-                                opacity: mapLocked ? 0.5 : 1,
-                                cursor: mapLocked ? "not-allowed" : "pointer",
-                            }}
+
+                            // ДОБАВЛЯЕМ ЭТОТ КЛАСС
+                            className={`btn-run-optimization ${mapLocked ? 'is-locked' : ''}`}
+
+                            // УБИРАЕМ ИНЛАЙНОВЫЕ СТИЛИ (оставляем только если нужно скрыть)
+                            style={mapLocked ? { visibility: 'hidden', pointerEvents: 'none' } : {}}
                         >
                             {running ? "Running CNN..." : "Run Optimization"}
                         </Button>
