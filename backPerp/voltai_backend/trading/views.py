@@ -46,9 +46,18 @@ def mine_and_persist(blockchain, tx_payload: dict) -> dict:
     """Add tx to blockchain, mine block, persist block to DB."""
     blockchain.add_transaction(tx_payload)
     block = blockchain.mine_pending_transactions()
+
     if block:
+        # 1. Находим последний индекс в БД
+        last_db_block = BlockchainBlock.objects.order_by('-index').first()
+        new_index = (last_db_block.index + 1) if last_db_block else 1
+
+        # 2. Синхронизируем индекс в объекте блока (чтобы хэш соответствовал реальности)
+        block.index = new_index
+
+        # 3. Сохраняем в БД, используя вычисленный new_index
         BlockchainBlock.objects.create(
-            index=block.index,
+            index=new_index,  # ИСПОЛЬЗУЕМ НОВЫЙ ИНДЕКС
             block_hash=block.hash,
             previous_hash=block.previous_hash,
             nonce=block.nonce,
@@ -56,9 +65,8 @@ def mine_and_persist(blockchain, tx_payload: dict) -> dict:
             transaction_count=len(block.transactions),
             transactions_data=block.transactions,
         )
-        return {"block_index": block.index, "block_hash": block.hash}
+        return {"block_index": new_index, "block_hash": block.hash}
     return {}
-
 
 # ── Standard Pagination ──────────────────────────────────────────
 class StandardPagination(PageNumberPagination):
