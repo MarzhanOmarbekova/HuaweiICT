@@ -348,7 +348,7 @@ export default function WindMap({
                 }}
             >
               {locked
-                  ? "📋 История — нажми Reset чтобы выбрать новую область"
+                  ? "History Mode — Click Reset to select a new area"
                   : pointCount < 4
                       ? `Click to place point ${pointCount + 1} of 4`
                       : "✓ Area selected — reset to pick again"}
