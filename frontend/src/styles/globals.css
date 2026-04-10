@@ -235,62 +235,55 @@ body {
 @media (max-width: 640px) {
   .page-container { padding: 16px 12px; }
 }
-/* ============================================================
-   ДИЗАЙН КНОПКИ RUN OPTIMIZATION (как на картинке)
-   ============================================================ */
-.btn-run-optimization {
+/* Универсальный стиль для главных кнопок проекта */
+.btn-action-main {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 
-  /* Размеры и отступы */
+  /* Размеры */
   padding: 12px 28px;
-  min-width: 200px; /* Чтобы была широкой, как на фото */
+  width: 100%; /* Чтобы в модалке была на всю ширину */
 
-  /* Фон и текст (точные цвета с картинки) */
-  background-color: #00e676; /* Яркий, сочный неоновый зеленый */
-  color: #070b12; /* Очень темный, почти черный, как в твоих переменных */
+  /* Цвета (как на твоем скрине с зеленой кнопкой) */
+  background-color: #00e676;
+  color: #070b12;
 
-  /* Шрифты (используем твой футуристичный Syne) */
+  /* Шрифт */
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 0.95rem;
-  text-transform: uppercase; /* Все заглавные */
-  letter-spacing: 1px; /* Чуть раздвинем буквы для стиля */
+  text-transform: uppercase;
+  letter-spacing: 1px;
 
   /* Форма */
   border: none;
-  border-radius: 50px; /* Делаем углы полностью круглыми, таблеткой */
+  border-radius: 50px; /* Таблетка */
   cursor: pointer;
 
-  /* Главная фишка: АНИМАЦИИ И ГЛОУ (Свечение) */
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 0 15px rgba(0, 230, 118, 0.5); /* Базовое мягкое свечение */
+  /* Эффекты */
+  transition: all 0.3s ease;
+  box-shadow: 0 0 15px rgba(0, 230, 118, 0.4);
 }
 
-/* Эффект при наведении */
-.btn-run-optimization:hover {
-  background-color: #00ff88; /* Чуть более светлый при наведении */
-  transform: translateY(-2px) scale(1.02); /* Кнопка немного всплывает и увеличивается */
-
-  /* Усиливаем неоновое свечение при наведении */
-  box-shadow:
-          0 0 10px rgba(0, 255, 136, 0.7),
-          0 0 25px rgba(0, 255, 136, 0.4);
+.btn-action-main:hover {
+  background-color: #00ff88;
+  transform: translateY(-1px);
+  box-shadow: 0 0 25px rgba(0, 255, 136, 0.6);
 }
 
-/* При нажатии */
-.btn-run-optimization:active {
-  transform: translateY(1px) scale(1); /* Кнопка вдавливается */
-  box-shadow: 0 0 10px rgba(0, 230, 118, 0.5); /* Ослабляем свечение */
+.btn-action-main:active {
+  transform: translateY(0);
 }
 
-/* Когда кнопка заблокирована (isLoading или mapLocked) */
-.btn-run-optimization:disabled {
-  background-color: var(--text-muted); /* Серая */
-  color: var(--text-invert); /* Светлый текст */
+.btn-action-main:disabled {
+  background-color: var(--text-muted);
   opacity: 0.5;
   cursor: not-allowed;
-  box-shadow: none; /* Убираем свечение */
-  transform: none;
+  box-shadow: none;
+}
+
+textarea:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 8px var(--accent-dim);
 }

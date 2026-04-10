@@ -188,7 +188,13 @@ export default function OffersPage({ addToast }: PageProps) {
           </div>
         )}
 
-        <Button variant="primary" style={{ width: '100%' }} loading={creating} onClick={createOffer}>
+        <Button
+            variant="primary"
+            style={{ width: '100%' }} // Этот стиль можно оставить или убрать (в CSS уже есть width 100%)
+            className="btn-action-main" // <-- ДОБАВЛЯЕМ ЭТОТ КЛАСС
+            loading={creating}
+            onClick={createOffer}
+        >
           Create Offer
         </Button>
       </Modal>

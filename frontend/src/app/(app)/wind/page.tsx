@@ -229,13 +229,15 @@ export default function WindPage({ addToast }: PageProps) {
                                     background: "var(--bg-input)",
                                     border: "1px solid var(--border)",
                                     borderRadius: "var(--radius-sm)",
-                                    padding: "6px 10px",
-                                    color: "var(--text-primary)",
+                                    padding: "8px 10px",
+                                    color: "var(--accent)", // Сделаем цифры зелеными
                                     fontFamily: "var(--font-mono)",
                                     fontSize: "14px",
                                     outline: "none",
                                     textAlign: "center",
-                                    opacity: mapLocked ? 0.5 : 1,
+                                    transition: "all 0.2s ease",
+                                    // Добавляем фокус
+                                    boxShadow: "inset 0 1px 3px rgba(0,0,0,0.2)"
                                 }}
                             />
                         </div>
@@ -245,11 +247,14 @@ export default function WindPage({ addToast }: PageProps) {
                             disabled={mapLocked || (coords.lat_min === 0 && coords.lat_max === 0)}
                             onClick={runOptimization}
 
-                            // ДОБАВЛЯЕМ ЭТОТ КЛАСС
-                            className={`btn-run-optimization ${mapLocked ? 'is-locked' : ''}`}
+                            // Применяем наш новый красивый класс
+                            className="btn-action-main"
 
-                            // УБИРАЕМ ИНЛАЙНОВЫЕ СТИЛИ (оставляем только если нужно скрыть)
-                            style={mapLocked ? { visibility: 'hidden', pointerEvents: 'none' } : {}}
+                            // Оставляем только функциональную логику стиля, если нужно
+                            style={{
+                                marginTop: '10px',
+                                display: mapLocked ? 'none' : 'inline-flex', // Скрываем, если смотрим историю
+                            }}
                         >
                             {running ? "Running CNN..." : "Run Optimization"}
                         </Button>
