@@ -225,7 +225,14 @@ export interface OptimizationHistory {
   num_turbines: number;
   status: string;
   optimal_points: any[];
-  // Добавь эти строки:
+  // Поле для 4 угловых точек (теперь хранится в БД)
+  boundary_points?: { lat: number; lng: number }[];
+  // Bounding box для fitBounds
+  lat_min?: number;
+  lat_max?: number;
+  lon_min?: number;
+  lon_max?: number;
+  // Энергетические прогнозы
   energy_1_month?: string;
   energy_3_months?: string;
   energy_6_months?: string;

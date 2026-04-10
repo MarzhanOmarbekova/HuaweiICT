@@ -14,6 +14,10 @@ class WindLocation(models.Model):
     lon_min = models.FloatField()
     lon_max = models.FloatField()
 
+    # 4 угловые точки которые пользователь поставил на карте
+    # Формат: [{"lat": ..., "lng": ...}, ...]
+    boundary_points = models.JSONField(default=list, blank=True)
+
     num_turbines = models.IntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, default="pending")
@@ -31,7 +35,7 @@ class AIModelResult(models.Model):
         WindLocation, on_delete=models.CASCADE, related_name="results"
     )
 
-    # [{lat, lon, efficiency}]
+    # [{lat, lon, efficiency}] — строго из узлов сетки area_data
     optimal_points = models.JSONField()
 
     energy_1_month = models.FloatField()

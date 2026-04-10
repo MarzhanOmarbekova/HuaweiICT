@@ -2,11 +2,10 @@
 voltai_backend/optimization/views.py
 
 ИСПРАВЛЕНИЯ:
-1. grid_size = 5 везде (модель обучена на 5x5, не 8x8)
-2. WindTurbineCNN(grid_size=5) при загрузке
-3. Используется wind_cnn_final.ckpt (wind_cnn_best.ckpt — это пустая заглушка!)
-4. Исправлен расчёт энергии: добавлен множитель от ветра
-5. Optimizer вызывается с grid_size=5
+1. grid_size = 5 везде
+2. Сохранение boundary_points (4 угловые точки карты) в WindLocation
+3. OptimizationHistoryView возвращает boundary_points
+4. Оптимальные точки строго из узлов сетки area_data — гарантируется через optimizer
 """
 
 import os
@@ -29,38 +28,24 @@ from .cnn_model import WindTurbineCNN, prepare_input_data
 from .optimizer import BruteForceOptimizer
 
 
-# ────────────────────────────────────────────────────────────
-# Конфигурация: ModelArts (опционально) и путь к чекпоинту
-# ────────────────────────────────────────────────────────────
 MODELARTS_ENDPOINT = os.environ.get('MODELARTS_ENDPOINT', '')
 MODELARTS_TOKEN    = os.environ.get('MODELARTS_TOKEN', '')
 
-# ВАЖНО: используем wind_cnn_final.ckpt — это реальная обученная модель.
-# wind_cnn_best.ckpt в репозитории — пустой текстовый файл-заглушка!
 _OPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LOCAL_CKPT_PATH = os.environ.get(
     'MINDSPORE_CHECKPOINT',
-    os.path.join(_OPT_DIR, 'wind_cnn_final.ckpt')   # <── изменено
+    os.path.join(_OPT_DIR, 'wind_cnn_final.ckpt')
 )
 
-# Размер сетки должен совпадать с тем, на чём обучали (5x5)
-GRID_SIZE = 5  # <── было 8, исправлено на 5
+GRID_SIZE = 5
 
-
-# ────────────────────────────────────────────────────────────
-# Загрузка модели (singleton)
-# ────────────────────────────────────────────────────────────
 
 def _load_model():
-    """Загружает CNN с правильной архитектурой (grid_size=5)."""
-    model = WindTurbineCNN(input_channels=2, grid_size=GRID_SIZE)  # grid_size=5!
-
+    model = WindTurbineCNN(input_channels=2, grid_size=GRID_SIZE)
     if os.path.exists(LOCAL_CKPT_PATH):
-        # Проверяем, что файл не пустая заглушка (реальный .ckpt > 1 KB)
         file_size = os.path.getsize(LOCAL_CKPT_PATH)
         if file_size < 1024:
             print(f'[CNN] WARNING: Checkpoint {LOCAL_CKPT_PATH} подозрительно мал ({file_size} байт).')
-            print('[CNN] Убедись, что это wind_cnn_final.ckpt, а не wind_cnn_best.ckpt!')
         try:
             param_not_loaded, _ = mindspore.load_param_into_net(
                 model, mindspore.load_checkpoint(LOCAL_CKPT_PATH)
@@ -71,11 +56,8 @@ def _load_model():
                 print(f'[CNN] Веса загружены успешно: {LOCAL_CKPT_PATH} ({file_size/1024:.1f} KB)')
         except Exception as e:
             print(f'[CNN] Ошибка загрузки чекпоинта: {e}')
-            print('[CNN] Используются случайные веса — результаты будут неточными!')
     else:
         print(f'[CNN] Файл не найден: {LOCAL_CKPT_PATH}')
-        print('[CNN] Скопируй wind_cnn_final.ckpt в папку optimization/')
-        print('[CNN] Или укажи путь через env: MINDSPORE_CHECKPOINT=/path/to/wind_cnn_final.ckpt')
 
     model.set_train(False)
     return model
@@ -91,19 +73,7 @@ def get_cnn_model():
     return _cnn_model
 
 
-# ────────────────────────────────────────────────────────────
-# Инференс
-# ────────────────────────────────────────────────────────────
-
 def run_cnn_inference(area_data: list, grid_size: int = GRID_SIZE) -> np.ndarray:
-    """
-    Запускает инференс — возвращает efficiency_map (grid_size, grid_size) float 0..1.
-
-    Приоритет:
-      1. ModelArts endpoint (если задан в env)
-      2. Локальная модель MindSpore
-    """
-    # --- ModelArts ---
     if MODELARTS_ENDPOINT and MODELARTS_TOKEN:
         try:
             ws_map  = np.zeros((grid_size, grid_size), dtype=np.float32)
@@ -127,17 +97,12 @@ def run_cnn_inference(area_data: list, grid_size: int = GRID_SIZE) -> np.ndarray
         except Exception as e:
             print(f'[CNN] ModelArts недоступен: {e}, fallback на локальную модель')
 
-    # --- Локальная модель ---
     model = get_cnn_model()
     input_array  = prepare_input_data(area_data, grid_size=grid_size)
     input_tensor = Tensor(input_array, mindspore.float32)
-    efficiency_map = model(input_tensor).asnumpy()[0]   # (grid_size, grid_size)
+    efficiency_map = model(input_tensor).asnumpy()[0]
     return efficiency_map
 
-
-# ────────────────────────────────────────────────────────────
-# Views
-# ────────────────────────────────────────────────────────────
 
 class WindOptimizationView(APIView):
     permission_classes = [IsAuthenticated]
@@ -152,9 +117,11 @@ class WindOptimizationView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        coords       = serializer.validated_data['coordinates']
-        num_turbines = serializer.validated_data['num_turbines']
-        grid_size    = GRID_SIZE  # 5x5 — как при обучении
+        coords           = serializer.validated_data['coordinates']
+        num_turbines     = serializer.validated_data['num_turbines']
+        # 4 угловые точки карты (опционально, приходят с фронта)
+        boundary_points  = request.data.get('boundary_points', [])
+        grid_size        = GRID_SIZE
 
         try:
             with transaction.atomic():
@@ -164,17 +131,18 @@ class WindOptimizationView(APIView):
                     lat_max=coords['lat_max'],
                     lon_min=coords['lon_min'],
                     lon_max=coords['lon_max'],
+                    boundary_points=boundary_points,   # ← сохраняем 4 точки
                     num_turbines=num_turbines,
                     status='processing',
                 )
 
-                # 1) Сбор данных о ветре (Open-Meteo API)
+                # 1) Сбор данных — area_data содержит ТОЛЬКО точки внутри bounding box
                 area_data = self.data_collector.collect_area_data(
                     lat_min=coords['lat_min'],
                     lat_max=coords['lat_max'],
                     lon_min=coords['lon_min'],
                     lon_max=coords['lon_max'],
-                    grid_points=grid_size,   # 5x5 = 25 точек
+                    grid_points=grid_size,
                 )
 
                 for point in area_data:
@@ -188,25 +156,24 @@ class WindOptimizationView(APIView):
                         soil_type='Unknown',
                     )
 
-                # 2) CNN инференс → карта эффективности (5x5)
+                # 2) CNN инференс → карта эффективности (5×5)
                 efficiency_map = run_cnn_inference(area_data, grid_size=grid_size)
 
-                # 3) Выбор лучших позиций
+                # 3) Оптимальные позиции — строго из узлов area_data
                 optimal_positions = self.optimizer.optimize_positions(
                     efficiency_map=efficiency_map,
                     area_data=area_data,
                     num_turbines=num_turbines,
-                    grid_size=grid_size,   # 5, не 20 и не 8
+                    grid_size=grid_size,
                 )
 
-                # 4) Расчёт энергии по физической формуле
-                # P = 0.5 * rho * A * V_hub³ * Cp * efficiency
+                # 4) Расчёт энергии
                 hours_per_month = 730.0
-                rotor_radius    = 45.0                        # м, типовая 2МВт турбина
-                swept_area      = np.pi * rotor_radius ** 2  # ~6362 м²
-                air_density     = 1.225                       # кг/м³
-                Cp              = 0.40                        # коэф. мощности
-                rated_kw        = 2000.0                      # номинальная мощность
+                rotor_radius    = 45.0
+                swept_area      = np.pi * rotor_radius ** 2
+                air_density     = 1.225
+                Cp              = 0.40
+                rated_kw        = 2000.0
 
                 total_1 = total_3 = total_6 = total_12 = 0.0
                 turbine_details = []
@@ -215,7 +182,6 @@ class WindOptimizationView(APIView):
                     v   = max(pos['wind_speed'], 0.0)
                     eff = float(pos['efficiency'])
 
-                    # Пересчёт скорости с 10м на высоту ступицы 80м (логарифмический профиль)
                     v_hub = v * (np.log(80.0 / 0.1) / np.log(10.0 / 0.1))
 
                     if 3.0 <= v_hub <= 25.0:
@@ -237,16 +203,16 @@ class WindOptimizationView(APIView):
                     total_12 += e12
 
                     turbine_details.append({
-                        'latitude':   pos['lat'],
-                        'longitude':  pos['lon'],
-                        'efficiency': round(eff, 4),
-                        'wind_speed': round(v, 2),
+                        'latitude':       pos['lat'],
+                        'longitude':      pos['lon'],
+                        'efficiency':     round(eff, 4),
+                        'wind_speed':     round(v, 2),
                         'wind_speed_hub': round(v_hub, 2),
                         'energy_predictions': {
-                            '1_month':     round(e1,  2),
-                            '3_months':    round(e3,  2),
-                            '6_months':    round(e6,  2),
-                            '12_months':   round(e12, 2),
+                            '1_month':      round(e1,  2),
+                            '3_months':     round(e3,  2),
+                            '6_months':     round(e6,  2),
+                            '12_months':    round(e12, 2),
                             'avg_power_kw': round(avg_power_kw, 2),
                         },
                     })
@@ -272,7 +238,7 @@ class WindOptimizationView(APIView):
                 wind_location.save()
 
                 return Response({
-                    'location_id': str(wind_location.id),
+                    'location_id':    str(wind_location.id),
                     'optimal_points': optimal_points,
                     'predicted_energy': {
                         '1_month':   f'{ai_result.energy_1_month:.2f} kWh',
@@ -286,15 +252,19 @@ class WindOptimizationView(APIView):
                         'soil_types':     ai_result.soil_types,
                     },
                     'turbine_details': turbine_details,
-                    'grid_size': grid_size,
-                    'inference_mode': 'modelarts' if (MODELARTS_ENDPOINT and MODELARTS_TOKEN) else 'local',
+                    'grid_size':       grid_size,
+                    'boundary_points': boundary_points,
+                    'inference_mode':  'modelarts' if (MODELARTS_ENDPOINT and MODELARTS_TOKEN) else 'local',
                 }, status=status.HTTP_200_OK)
 
         except Exception as e:
             import traceback
             traceback.print_exc()
-            wind_location.status = 'failed'
-            wind_location.save()
+            try:
+                wind_location.status = 'failed'
+                wind_location.save()
+            except Exception:
+                pass
             return Response(
                 {'error': f'Optimization failed: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -309,29 +279,30 @@ class OptimizationHistoryView(APIView):
         history = []
         for loc in locations:
             item = {
-                'id': str(loc.id),
-                'created_at': loc.created_at,
-                'num_turbines': loc.num_turbines,
-                'status': loc.status,
+                'id':             str(loc.id),
+                'created_at':     loc.created_at,
+                'num_turbines':   loc.num_turbines,
+                'status':         loc.status,
+                # 4 угловые точки для восстановления полигона на карте
+                'boundary_points': loc.boundary_points or [],
+                # bounding box для fitBounds
+                'lat_min': loc.lat_min,
+                'lat_max': loc.lat_max,
+                'lon_min': loc.lon_min,
+                'lon_max': loc.lon_max,
             }
             try:
                 res = AIModelResult.objects.get(wind_location=loc)
-                # Собираем все предсказания энергии
-                item['energy_1_month'] = f'{res.energy_1_month:.2f} kWh'
+                item['energy_1_month']  = f'{res.energy_1_month:.2f} kWh'
                 item['energy_3_months'] = f'{res.energy_3_months:.2f} kWh'
                 item['energy_6_months'] = f'{res.energy_6_months:.2f} kWh'
-                item['energy_12_months'] = f'{res.energy_12_months:.2f} kWh'
-
-                # Собираем данные об окружающей среде
-                item['avg_wind_speed'] = f'{res.avg_wind_speed:.2f} m/s'
-                item['avg_elevation'] = f'{res.avg_elevation:.1f} m'
-
-                # Передаем точки (убедись, что в JSON точек лежат wind_speed и т.д.)
-                item['optimal_points'] = res.optimal_points
-
+                item['energy_12_months']= f'{res.energy_12_months:.2f} kWh'
+                item['avg_wind_speed']  = f'{res.avg_wind_speed:.2f} m/s'
+                item['avg_elevation']   = f'{res.avg_elevation:.1f} m'
+                item['optimal_points']  = res.optimal_points
             except AIModelResult.DoesNotExist:
                 item['energy_12_months'] = '-'
-                item['optimal_points'] = []
+                item['optimal_points']   = []
 
             history.append(item)
 

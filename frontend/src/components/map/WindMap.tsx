@@ -11,10 +11,16 @@ interface Coordinates {
 
 interface WindMapProps {
   onAreaSelected: (coords: Coordinates) => void;
+  // Колбэк для передачи 4 угловых точек наружу
+  onBoundaryPointsChange?: (points: { lat: number; lng: number }[]) => void;
   onReset?: () => void;
   optimalPoints: { lat: number; lng: number }[];
   isLoading: boolean;
   initialCoords?: Coordinates;
+  // 4 угловые точки из истории для восстановления полигона
+  boundaryPoints?: { lat: number; lng: number }[];
+  // Блокировка карты (режим просмотра истории)
+  locked?: boolean;
 }
 
 const GOOGLE_MAPS_API_KEY = "AIzaSyCQF0pai6dW89n7AON7BqDVQMfcC6pEQYY";
@@ -30,13 +36,8 @@ declare global {
 
 function loadGoogleMaps(): Promise<void> {
   return new Promise((resolve) => {
-    if (window.google?.maps) {
-      resolve();
-      return;
-    }
-    if (!window.__gmaps_callbacks__) {
-      window.__gmaps_callbacks__ = [];
-    }
+    if (window.google?.maps) { resolve(); return; }
+    if (!window.__gmaps_callbacks__) window.__gmaps_callbacks__ = [];
     window.__gmaps_callbacks__.push(resolve);
     if (window.__gmaps_loaded__) return;
     window.__gmaps_loaded__ = true;
@@ -53,54 +54,54 @@ function loadGoogleMaps(): Promise<void> {
 }
 
 export default function WindMap({
-  onAreaSelected,
-  onReset,
-  optimalPoints,
-  isLoading,
-  initialCoords,
-}: WindMapProps) {
+                                  onAreaSelected,
+                                  onBoundaryPointsChange,
+                                  onReset,
+                                  optimalPoints,
+                                  isLoading,
+                                  initialCoords,
+                                  boundaryPoints,
+                                  locked = false,
+                                }: WindMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const optimalMarkersRef = useRef<any[]>([]);
   const polygonRef = useRef<any>(null);
+  const historyPolygonRef = useRef<any>(null);
   const pointsRef = useRef<{ lat: number; lng: number }[]>([]);
+  const clickListenerRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
   const [pointCount, setPointCount] = useState(0);
 
+  // ── Инициализация карты ──────────────────────────────────────
   const initMap = useCallback(() => {
     if (!mapRef.current || mapInstance.current) return;
-
     const map = new window.google.maps.Map(mapRef.current, {
       center: { lat: 43.275, lng: 76.925 },
       zoom: 11,
     });
-
     mapInstance.current = map;
     setMapReady(true);
+  }, []);
 
-    map.addListener("click", (e: any) => {
-      if (!e.latLng) return;
-      if (pointsRef.current.length >= 4) return;
+  useEffect(() => {
+    loadGoogleMaps().then(() => initMap());
+  }, [initMap]);
 
-      const newPoint = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-      pointsRef.current = [...pointsRef.current, newPoint];
-      setPointCount(pointsRef.current.length);
+  // ── Рисуем полигон по точкам ─────────────────────────────────
+  const drawPolygon = useCallback(
+      (
+          pts: { lat: number; lng: number }[],
+          color = "#00BFA5",
+          ref: React.MutableRefObject<any>
+      ) => {
+        if (!mapInstance.current || pts.length < 3) return;
+        if (ref.current) ref.current.setMap(null);
 
-      const marker = new window.google.maps.Marker({
-        position: newPoint,
-        map,
-        label: String(pointsRef.current.length),
-      });
-      markersRef.current.push(marker);
-
-      if (pointsRef.current.length === 4) {
-        if (polygonRef.current) polygonRef.current.setMap(null);
-
-        const pts = pointsRef.current;
         const center = {
-          lat: pts.reduce((s, p) => s + p.lat, 0) / 4,
-          lng: pts.reduce((s, p) => s + p.lng, 0) / 4,
+          lat: pts.reduce((s, p) => s + p.lat, 0) / pts.length,
+          lng: pts.reduce((s, p) => s + p.lng, 0) / pts.length,
         };
         const sorted = [...pts].sort((a, b) => {
           const angleA = Math.atan2(a.lat - center.lat, a.lng - center.lng);
@@ -108,32 +109,76 @@ export default function WindMap({
           return angleA - angleB;
         });
 
-        polygonRef.current = new window.google.maps.Polygon({
+        ref.current = new window.google.maps.Polygon({
           paths: sorted,
-          strokeColor: "#00BFA5",
+          strokeColor: color,
           strokeWeight: 3,
-          fillColor: "#00BFA5",
-          fillOpacity: 0.3,
-          map,
+          fillColor: color,
+          fillOpacity: 0.2,
+          map: mapInstance.current,
         });
+      },
+      []
+  );
 
-        const lats = pts.map((p) => p.lat);
-        const lngs = pts.map((p) => p.lng);
-        onAreaSelected({
-          lat_min: Math.min(...lats),
-          lat_max: Math.max(...lats),
-          lon_min: Math.min(...lngs),
-          lon_max: Math.max(...lngs),
-        });
-      }
-    });
-  }, [onAreaSelected]);
-
+  // ── Управление кликами ────────────────────────────────────────
   useEffect(() => {
-    loadGoogleMaps().then(() => initMap());
-  }, [initMap]);
+    if (!mapReady || !mapInstance.current) return;
 
-  // Always clear previous optimal markers before rendering new ones
+    if (clickListenerRef.current) {
+      window.google.maps.event.removeListener(clickListenerRef.current);
+      clickListenerRef.current = null;
+    }
+
+    // Если карта заблокирована — не вешаем слушатель
+    if (locked) return;
+
+    clickListenerRef.current = mapInstance.current.addListener(
+        "click",
+        (e: any) => {
+          if (!e.latLng) return;
+          if (pointsRef.current.length >= 4) return;
+
+          const newPoint = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+          const newPoints = [...pointsRef.current, newPoint];
+          pointsRef.current = newPoints;
+          setPointCount(newPoints.length);
+
+          // Маркер с номером
+          const marker = new window.google.maps.Marker({
+            position: newPoint,
+            map: mapInstance.current,
+            label: String(newPoints.length),
+          });
+          markersRef.current.push(marker);
+
+          if (newPoints.length === 4) {
+            drawPolygon(newPoints, "#00BFA5", polygonRef);
+
+            // Передаём 4 точки наружу
+            onBoundaryPointsChange?.(newPoints);
+
+            const lats = newPoints.map((p) => p.lat);
+            const lngs = newPoints.map((p) => p.lng);
+            onAreaSelected({
+              lat_min: Math.min(...lats),
+              lat_max: Math.max(...lats),
+              lon_min: Math.min(...lngs),
+              lon_max: Math.max(...lngs),
+            });
+          }
+        }
+    );
+
+    return () => {
+      if (clickListenerRef.current) {
+        window.google.maps.event.removeListener(clickListenerRef.current);
+        clickListenerRef.current = null;
+      }
+    };
+  }, [mapReady, locked, onAreaSelected, onBoundaryPointsChange, drawPolygon]);
+
+  // ── Оптимальные точки (красные маркеры) ─────────────────────
   useEffect(() => {
     if (!mapInstance.current) return;
 
@@ -148,7 +193,7 @@ export default function WindMap({
         map: mapInstance.current,
         icon: {
           path: window.google.maps.SymbolPath.CIRCLE,
-          scale: 8,
+          scale: 9,
           fillColor: "#FF5722",
           fillOpacity: 1,
           strokeColor: "#fff",
@@ -158,53 +203,57 @@ export default function WindMap({
       optimalMarkersRef.current.push(marker);
     });
   }, [optimalPoints]);
-  useEffect(() => {
-    // 1. Проверяем наличие инстанса внутри .current
-    if (!mapInstance.current || !initialCoords) return;
 
-    // 2. Пропускаем нулевые координаты
+  // ── Полигон из истории ────────────────────────────────────────
+  useEffect(() => {
+    if (!mapReady || !mapInstance.current) return;
+
+    // Убираем старый полигон истории
+    if (historyPolygonRef.current) {
+      historyPolygonRef.current.setMap(null);
+      historyPolygonRef.current = null;
+    }
+
+    if (!boundaryPoints?.length) return;
+
+    drawPolygon(boundaryPoints, "#3b82f6", historyPolygonRef);
+  }, [boundaryPoints, mapReady, drawPolygon]);
+
+  // ── fitBounds ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!mapInstance.current || !initialCoords) return;
     if (initialCoords.lat_min === 0 && initialCoords.lat_max === 0) return;
 
     try {
-      // 3. Создаем объект Bounds для Google Maps
       const bounds = new window.google.maps.LatLngBounds();
-
       bounds.extend({ lat: initialCoords.lat_min, lng: initialCoords.lon_min });
       bounds.extend({ lat: initialCoords.lat_max, lng: initialCoords.lon_max });
-
-      // 4. Вызываем fitBounds у инстанса
       mapInstance.current.fitBounds(bounds);
 
-      // Дополнительно: если точек мало, Google Maps может слишком сильно приблизить.
-      // Можно ограничить максимальный зум после фита (опционально)
-      const listener = window.google.maps.event.addListenerOnce(mapInstance.current, 'bounds_changed', () => {
-        if (mapInstance.current.getZoom() > 15) mapInstance.current.setZoom(15);
-      });
-
+      window.google.maps.event.addListenerOnce(
+          mapInstance.current,
+          "bounds_changed",
+          () => {
+            if (mapInstance.current.getZoom() > 14) mapInstance.current.setZoom(14);
+          }
+      );
     } catch (e) {
-      console.error("Ошибка при зуме карты:", e);
+      console.error("fitBounds error:", e);
     }
-    // Зависимость mapReady гарантирует, что мы выполним код, когда карта реально создана
   }, [initialCoords, mapReady]);
-  // Внутри WindMap.tsx
+
+  // ── Сброс при обнулении координат ───────────────────────────
   useEffect(() => {
-    // Если координаты стали нулевыми (сброс из родителя)
     if (initialCoords?.lat_min === 0 && initialCoords?.lat_max === 0) {
-      // Очищаем маркеры выбора
       markersRef.current.forEach((m) => m.setMap(null));
       markersRef.current = [];
 
-      // Очищаем полигон
-      if (polygonRef.current) {
-        polygonRef.current.setMap(null);
-        polygonRef.current = null;
-      }
+      if (polygonRef.current) { polygonRef.current.setMap(null); polygonRef.current = null; }
+      if (historyPolygonRef.current) { historyPolygonRef.current.setMap(null); historyPolygonRef.current = null; }
 
-      // Очищаем точки
       pointsRef.current = [];
       setPointCount(0);
 
-      // Центрируем карту обратно на Алматы (или твой дефолт)
       if (mapInstance.current) {
         mapInstance.current.setCenter({ lat: 43.275, lng: 76.925 });
         mapInstance.current.setZoom(11);
@@ -212,151 +261,165 @@ export default function WindMap({
     }
   }, [initialCoords]);
 
+  // ── Reset кнопка ─────────────────────────────────────────────
   const handleReset = () => {
-    // 1. Очищаем маркеры выбора (те, что ставили кликами)
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
 
-    // 2. Очищаем полигон
-    if (polygonRef.current) {
-      polygonRef.current.setMap(null);
-      polygonRef.current = null;
-    }
+    if (polygonRef.current) { polygonRef.current.setMap(null); polygonRef.current = null; }
+    if (historyPolygonRef.current) { historyPolygonRef.current.setMap(null); historyPolygonRef.current = null; }
 
-    // 3. Очищаем маркеры оптимальных точек (из истории или текущего результата)
     optimalMarkersRef.current.forEach((m) => m.setMap(null));
     optimalMarkersRef.current = [];
 
-    // 4. Сбрасываем внутренние счетчики
     pointsRef.current = [];
     setPointCount(0);
 
-    // 5. ГЛАВНОЕ: Уведомляем родителя, чтобы он очистил координаты и результат истории
+    onBoundaryPointsChange?.([]);
     onAreaSelected({ lat_min: 0, lat_max: 0, lon_min: 0, lon_max: 0 });
-    onReset?.(); // Это вызовет handleReset в WindPage
+    onReset?.();
   };
 
+  const showResetButton =
+      pointCount > 0 ||
+      optimalPoints.length > 0 ||
+      (boundaryPoints?.length ?? 0) > 0;
+
   return (
-    <div
-      style={{
-        position: "relative",
-        width: "100%",
-        height: "500px",
-        borderRadius: "12px",
-        overflow: "hidden",
-      }}
-    >
-      {!mapReady && (
-        <div
+      <div
           style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "#f5f5f5",
-            zIndex: 10,
+            position: "relative",
+            width: "100%",
+            height: "500px",
+            borderRadius: "12px",
+            overflow: "hidden",
           }}
-        >
-          Loading map…
-        </div>
-      )}
+      >
+        {!mapReady && (
+            <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "#f5f5f5",
+                  zIndex: 10,
+                }}
+            >
+              Loading map…
+            </div>
+        )}
 
-      <div ref={mapRef} style={{ width: "100%", height: "100%" }} />
+        <div ref={mapRef} style={{ width: "100%", height: "100%" }} />
 
-      {mapReady && (
-        <div
-          style={{
-            position: "absolute",
-            top: 12,
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "rgba(0,0,0,0.65)",
-            backdropFilter: "blur(6px)",
-            color: "#fff",
-            padding: "6px 16px",
-            borderRadius: "20px",
-            fontSize: "13px",
-            fontWeight: 500,
-            pointerEvents: "none",
-            whiteSpace: "nowrap",
-            letterSpacing: "0.01em",
-          }}
-        >
-          {pointCount < 4
-            ? `Click to place point ${pointCount + 1} of 4`
-            : "✓ Area selected — reset to pick again"}
-        </div>
-      )}
+        {/* Оверлей-блокировка — перехватывает клики поверх карты */}
+        {locked && mapReady && (
+            <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  zIndex: 5,
+                  cursor: "not-allowed",
+                  background: "rgba(59,130,246,0.04)",
+                }}
+                onClick={(e) => e.stopPropagation()}
+            />
+        )}
 
-      {(pointCount > 0 || optimalPoints.length > 0) && (
-        <button
-          onClick={handleReset}
-          style={{
-            position: "absolute",
-            bottom: 20,
-            left: "50%",
-            transform: "translateX(-50%)",
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            background: "#fff",
-            color: "#d32f2f",
-            border: "1.5px solid #ffcdd2",
-            borderRadius: "10px",
-            padding: "8px 20px",
-            cursor: "pointer",
-            fontSize: "13px",
-            fontWeight: 600,
-            letterSpacing: "0.02em",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-            transition: "all 0.15s ease",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "#ffebee";
-            (e.currentTarget as HTMLButtonElement).style.borderColor =
-              "#ef9a9a";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "#fff";
-            (e.currentTarget as HTMLButtonElement).style.borderColor =
-              "#ffcdd2";
-          }}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="1 4 1 10 7 10" />
-            <path d="M3.51 15a9 9 0 1 0 .49-3.95" />
-          </svg>
-          Reset selection
-        </button>
-      )}
+        {/* Подсказка */}
+        {mapReady && (
+            <div
+                style={{
+                  position: "absolute",
+                  top: 12,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  background: locked ? "rgba(59,130,246,0.85)" : "rgba(0,0,0,0.65)",
+                  backdropFilter: "blur(6px)",
+                  color: "#fff",
+                  padding: "6px 16px",
+                  borderRadius: "20px",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  pointerEvents: "none",
+                  whiteSpace: "nowrap",
+                  letterSpacing: "0.01em",
+                  zIndex: 6,
+                }}
+            >
+              {locked
+                  ? "📋 История — нажми Reset чтобы выбрать новую область"
+                  : pointCount < 4
+                      ? `Click to place point ${pointCount + 1} of 4`
+                      : "✓ Area selected — reset to pick again"}
+            </div>
+        )}
 
-      {isLoading && (
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            background: "rgba(0,0,0,0.75)",
-            color: "#fff",
-            padding: "12px 20px",
-            borderRadius: "8px",
-            fontSize: "14px",
-          }}
-        >
-          Optimizing…
-        </div>
-      )}
-    </div>
+        {/* Reset */}
+        {showResetButton && (
+            <button
+                onClick={handleReset}
+                style={{
+                  position: "absolute",
+                  bottom: 20,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  background: "#fff",
+                  color: "#d32f2f",
+                  border: "1.5px solid #ffcdd2",
+                  borderRadius: "10px",
+                  padding: "8px 20px",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  letterSpacing: "0.02em",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                  transition: "all 0.15s ease",
+                  zIndex: 10,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#ffebee";
+                  e.currentTarget.style.borderColor = "#ef9a9a";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "#fff";
+                  e.currentTarget.style.borderColor = "#ffcdd2";
+                }}
+            >
+              <svg
+                  width="14" height="14" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor"
+                  strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              >
+                <polyline points="1 4 1 10 7 10" />
+                <path d="M3.51 15a9 9 0 1 0 .49-3.95" />
+              </svg>
+              Reset selection
+            </button>
+        )}
+
+        {isLoading && (
+            <div
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  background: "rgba(0,0,0,0.75)",
+                  color: "#fff",
+                  padding: "12px 20px",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  zIndex: 20,
+                }}
+            >
+              Optimizing…
+            </div>
+        )}
+      </div>
   );
 }
