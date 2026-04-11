@@ -28,13 +28,15 @@ export default function OffersPage({ addToast }: PageProps) {
   useEffect(() => {
     setLoading(true)
     Promise.all([
-      api.get<{ results: Offer[] }>('/marketplace/'),
+      // МЕНЯЕМ ЗДЕСЬ: вместо общего маркетплейса стучимся в личные офферы
+      api.get<{ results: Offer[] }>('/my-offers/'),
       api.get<{ devices: Device[] }>('/devices/'),
     ]).then(([off, dev]) => {
+      // Теперь здесь будут только ТВОИ офферы
       setOffers(off.results || [])
       setDevices(dev.devices || [])
     }).catch(() => addToast?.('error', 'Failed to load data'))
-      .finally(() => setLoading(false))
+        .finally(() => setLoading(false))
   }, [rev])
 
   const createOffer = async () => {

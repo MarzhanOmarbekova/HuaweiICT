@@ -21,6 +21,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from blockchain.blockchain import get_blockchain
 from blockchain.smart_contract import SmartContract, create_mint_transaction
 
+import logging
+logger = logging.getLogger(__name__)
 from .models import (
     EnergyDevice, EnergyData, UserBalance, EnergyOffer,
     EnergyBid, EnergyContract, Transaction, BlockchainBlock
@@ -563,3 +565,14 @@ class DashboardStatsView(APIView):
             },
             "recent_transactions": TransactionSerializer(recent_txs, many=True).data,
         })
+
+
+class MyOffersView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Фильтруем только те офферы, которые создал текущий пользователь
+        offers = EnergyOffer.objects.filter(seller=request.user).order_by('-created_at')
+        serializer = EnergyOfferSerializer(offers, many=True)
+        # Возвращаем в формате {"results": [...]}, чтобы фронтенд не сломался
+        return Response({"results": serializer.data})

@@ -38,7 +38,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
     clearAuthData();
 
     if (typeof window !== "undefined") {
-      window.location.href = "/login";
+      window.location.href = "/dashboard";
     }
 
     throw new Error("Unauthorized");

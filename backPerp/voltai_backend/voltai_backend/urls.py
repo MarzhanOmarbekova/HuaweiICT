@@ -19,6 +19,8 @@ from trading.views import (
     DashboardStatsView,
 )
 
+from trading.views import MyOffersView
+
 urlpatterns = [
     path("admin/", admin.site.urls),
 
@@ -44,6 +46,7 @@ urlpatterns = [
     path("api/marketplace/", MarketplaceView.as_view(), name="marketplace"),
 
     # ── Offers ────────────────────────────────────────────
+    path('api/my-offers/', MyOffersView.as_view(), name='my-offers'),
     path("api/offers/", CreateOfferView.as_view(), name="create_offer"),
     path("api/offers/<uuid:offer_id>/", OfferDetailView.as_view(), name="offer_detail"),
     path("api/offers/<uuid:offer_id>/bids/", OfferBidsView.as_view(), name="offer_bids"),
